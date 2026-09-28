@@ -41,6 +41,12 @@ Las llaves de las notificaciones se crean solas la primera vez y quedan guardada
 - **Si entraste primero desde Safari:** abre la app del ícono → **🌐 Multijugador → Recupera tu lugar**, con el código de la sala y **tu clave** (aparece en la sala y en ☰ Más).
 - **Al tocar un aviso de turno** se abre directo tu partida.
 
+## Mismas reglas que "Mismo teléfono"
+Las partidas online nuevas usan exactamente las reglas de **👥 Mismo teléfono**: 4 PA, economía y combate iguales, **El Gran Odilio**, **minijuegos** (1 por turno), **logros de la partida**, color y escudo propios.
+- **Modo de juego:** el anfitrión lo elige en la sala: 🏰 Asedio de castillos (predeterminado), 🗺️ Dominio en 7 turnos, ⚔️ Conquista total o 👑 Clásico.
+- **Todo lo valida el servidor:** oro, tropas, PA, ataques, compras, magia, Odilio, turnos y victoria. El teléfono solo envía la acción.
+- Las partidas que ya estaban empezadas antes de esta versión se terminan con sus reglas originales.
+
 ## Cómo funcionan las partidas largas
 - **Tiempo por turno:** el anfitrión elige en la sala qué pasa si alguien no está en su turno: **saltar a los 2 min** (para jugar al mismo tiempo), **saltar a las 12 h** o **esperar siempre**.
 - **Guardado:** las partidas se guardan en el disco y sobreviven reinicios y actualizaciones.
