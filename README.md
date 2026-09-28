@@ -47,6 +47,12 @@ Las partidas online nuevas usan exactamente las reglas de **👥 Mismo teléfono
 - **Todo lo valida el servidor:** oro, tropas, PA, ataques, compras, magia, Odilio, turnos y victoria. El teléfono solo envía la acción.
 - Las partidas que ya estaban empezadas antes de esta versión se terminan con sus reglas originales.
 
+## Mapas de Asedio de castillos
+Cada partida de 🏰 Asedio de castillos (online y Mismo teléfono) sale en uno de **8 mapas grandes** al azar: Llanuras Abiertas, El Gran Río, Las Terrazas, Valles Gemelos, Lago de la Corona, Cuatro Provincias, Archipiélago y Tierras Salvajes.
+- De 35 a 45 territorios según cuántos reinos haya, con ríos y cordilleras que obligan a buscar rutas.
+- Los castillos salen en lugares distintos cada vez, pero siempre justos: con 2 reinos se necesitan al menos 6 ataques para llegar a un castillo rival (imposible en el primer turno), todos quedan a la misma distancia y hay al menos 2 caminos entre castillos.
+- En online el servidor crea el mapa una sola vez: todos ven exactamente lo mismo y al reconectar no cambia.
+
 ## Cómo funcionan las partidas largas
 - **Tiempo por turno:** el anfitrión elige en la sala qué pasa si alguien no está en su turno: **saltar a los 2 min** (para jugar al mismo tiempo), **saltar a las 12 h** o **esperar siempre**.
 - **Guardado:** las partidas se guardan en el disco y sobreviven reinicios y actualizaciones.
