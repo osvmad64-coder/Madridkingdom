@@ -25,7 +25,9 @@ const HOST_HANDOFF_MS = 30_000;                   // anfitrión desconectado 30 
 const SKIP_OPTIONS = { live: Number(process.env.SKIP_LIVE_MS) || 2 * 60_000, h12: 12 * 60 * 60_000, none: 0 }; // límite de turno si quien juega no está
 const ROOM_TTL_MS = Number(process.env.ROOM_TTL_MS) || 14 * 24 * 60 * 60_000; // salas sin actividad 14 días → se borran
 const PUSH_DELAY_MS = Number(process.env.PUSH_DELAY_MS) || 20_000; // si está conectado al empezar su turno, esperar antes de avisar
+const MG_MIN_MS = Number(process.env.MG_MIN_MS) || 9_000;          // un minijuego dura 10 s: no se cobra antes de este tiempo
 const CHAT_MAX = 100, CHAT_LEN = 200;
+const DEFAULT_SETTINGS = { ai: 0, diff: 'media', skip: 'h12', goal: 'castles' }; // castillos = modo predeterminado de "Mismo teléfono"
 
 // ---------- Notificaciones push (llaves VAPID: variables de entorno o se generan y guardan solas) ----------
 function loadVapid() {
@@ -70,10 +72,14 @@ function createEngine() {
   if (!api) throw new Error('No se pudo iniciar el motor del juego');
   return { api, dom };
 }
+// Motor de referencia: da al servidor los catálogos oficiales del juego (modos, colores, escudos, minijuegos)
+// para validar sin copiar listas del index.html.
+const REF = createEngine().api;
+const plain = o => JSON.parse(JSON.stringify(o));
 function publicRoom(room) {
   return {
     code: room.code, status: room.status, hostId: room.hostId, settings: room.settings,
-    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, cls: p.cls, hid: p.hid, connected: p.connected, host: p.id === room.hostId, push: !!p.push })),
+    players: room.players.map(p => ({ id: p.id, name: p.name, color: p.color, crest: p.crest || null, cls: p.cls, hid: p.hid, connected: p.connected, host: p.id === room.hostId, push: !!p.push })),
   };
 }
 
@@ -85,7 +91,7 @@ function saveRoomNow(room) {
     const data = {
       code: room.code, status: room.status, hostId: room.hostId, settings: room.settings, touched: room.touched,
       turnKey: room.turnKey, turnStartedAt: room.turnStartedAt, chat: room.chat,
-      players: room.players.map(p => ({ id: p.id, token: p.token, name: p.name, color: p.color, cls: p.cls, hid: p.hid, kicked: !!p.kicked, push: p.push || null, lastSeen: p.lastSeen, notifiedKey: p.notifiedKey || null })),
+      players: room.players.map(p => ({ id: p.id, token: p.token, name: p.name, color: p.color, crest: p.crest || null, cls: p.cls, hid: p.hid, kicked: !!p.kicked, push: p.push || null, lastSeen: p.lastSeen, notifiedKey: p.notifiedKey || null })),
       state: room.engine ? room.engine.api.mpSnapshot() : null,
     };
     const tmp = roomFile(room.code) + '.tmp';
@@ -108,9 +114,9 @@ function loadRooms() {
     if (!f.endsWith('.json')) continue;
     try {
       const d = JSON.parse(fs.readFileSync(path.join(ROOMS_DIR, f), 'utf8'));
-      const room = { code: d.code, status: d.status, hostId: d.hostId, settings: Object.assign({ ai: 0, diff: 'media', skip: 'h12' }, d.settings),
+      const room = { code: d.code, status: d.status, hostId: d.hostId, settings: Object.assign({}, DEFAULT_SETTINGS, d.settings),
         touched: d.touched || Date.now(), turnKey: d.turnKey || null, turnStartedAt: d.turnStartedAt || Date.now(), chat: d.chat || [], engine: null,
-        players: d.players.map(p => Object.assign(p, { connected: false, socketId: null, lastSeen: p.lastSeen || Date.now() })) };
+        players: d.players.map(p => Object.assign(p, { crest: p.crest || plain(REF.randomCrest()), connected: false, socketId: null, lastSeen: p.lastSeen || Date.now() })) };
       if (d.state) { room.engine = createEngine(); room.engine.api.mpRestore(d.state); }
       rooms.set(room.code, room);
     } catch (e) { console.error('No se pudo cargar', f, e.message); }
@@ -196,7 +202,7 @@ function attach(socket, room, player) {
 function newPlayer(name, room) {
   const used = new Set(room ? room.players.map(p => p.color) : []);
   return { id: crypto.randomBytes(4).toString('hex'), token: crypto.randomBytes(16).toString('hex'), name,
-    color: HUMAN_COLORS.find(c => !used.has(c)) || HUMAN_COLORS[0], cls: 'guerrero', hid: null, connected: true, socketId: null, lastSeen: Date.now(), push: null, chatTimes: [] };
+    color: HUMAN_COLORS.find(c => !used.has(c)) || HUMAN_COLORS[0], crest: plain(REF.randomCrest()), cls: 'guerrero', hid: null, connected: true, socketId: null, lastSeen: Date.now(), push: null, chatTimes: [] };
 }
 
 io.on('connection', socket => {
@@ -206,7 +212,7 @@ io.on('connection', socket => {
     name = cleanName(name);
     if (!name) return reply(ack, { ok: false, error: 'Escribe un nombre.' });
     const code = makeCode();
-    const room = { code, status: 'lobby', players: [], hostId: null, settings: { ai: 0, diff: 'media', skip: 'h12' }, engine: null, touched: Date.now(), chat: [], turnKey: null, turnStartedAt: Date.now() };
+    const room = { code, status: 'lobby', players: [], hostId: null, settings: Object.assign({}, DEFAULT_SETTINGS), engine: null, touched: Date.now(), chat: [], turnKey: null, turnStartedAt: Date.now() };
     const p = newPlayer(name, room);
     room.players.push(p); room.hostId = p.id;
     rooms.set(code, room);
@@ -263,13 +269,29 @@ io.on('connection', socket => {
     player.cls = cls; sendRoom(room); reply(ack, { ok: true });
   });
 
-  socket.on('settings', ({ ai, diff, skip } = {}, ack) => {
+  socket.on('settings', ({ ai, diff, skip, goal } = {}, ack) => {
     const { room, player } = ctxOf(socket);
     if (!room || room.status !== 'lobby' || player.id !== room.hostId) return reply(ack, { ok: false, error: 'Solo el anfitrión puede cambiar esto.' });
     const maxAi = Math.max(0, MAX_PLAYERS - room.players.length);
     if (ai !== undefined) room.settings.ai = Math.max(0, Math.min(maxAi, Number.isInteger(ai) ? ai : 0));
     if (diff !== undefined) room.settings.diff = ['facil', 'media', 'dificil'].includes(diff) ? diff : 'media';
     if (skip !== undefined && SKIP_OPTIONS[skip] !== undefined) room.settings.skip = skip;
+    if (goal !== undefined && REF.goals.includes(goal)) room.settings.goal = goal;
+    sendRoom(room); reply(ack, { ok: true });
+  });
+
+  // Color y escudo del jugador (como en "Mismo teléfono"). Solo piezas oficiales y colores sin repetir.
+  socket.on('setIdentity', ({ color, crest } = {}, ack) => {
+    const { room, player } = ctxOf(socket);
+    if (!room || !player || room.status !== 'lobby') return reply(ack, { ok: false, error: 'Solo se cambia en la sala de espera.' });
+    if (color !== undefined) {
+      if (!REF.colors.includes(color)) return reply(ack, { ok: false, error: 'Color inválido.' });
+      if (room.players.some(p => p !== player && p.color === color)) return reply(ack, { ok: false, error: 'Ese color ya lo tiene otro jugador.' });
+    }
+    let clean = null;
+    if (crest !== undefined && !(clean = REF.cleanCrest(crest))) return reply(ack, { ok: false, error: 'Escudo inválido.' });
+    if (color !== undefined) player.color = color;
+    if (clean) player.crest = plain(clean);
     sendRoom(room); reply(ack, { ok: true });
   });
 
@@ -282,7 +304,9 @@ io.on('connection', socket => {
     humans.forEach((p, i) => { p.hid = 'h' + i; });
     try {
       room.engine = createEngine();
-      room.engine.api.mpStartGame({ humans: humans.map(p => ({ hid: p.hid, name: p.name, color: p.color, cls: p.cls })), ai: room.settings.ai, diff: room.settings.diff });
+      // Mismas reglas que "Mismo teléfono" (fullRules) y el modo de juego elegido en la sala.
+      room.engine.api.mpStartGame({ fullRules: true, goal: room.settings.goal,
+        humans: humans.map(p => ({ hid: p.hid, name: p.name, color: p.color, cls: p.cls, crest: p.crest || null })), ai: room.settings.ai, diff: room.settings.diff });
     } catch (e) {
       console.error(e); room.engine = null;
       return reply(ack, { ok: false, error: 'No se pudo iniciar la partida.' });
@@ -296,9 +320,27 @@ io.on('connection', socket => {
     const { room, player } = ctxOf(socket);
     if (!room || !room.engine || !player || !player.hid) return reply(ack, { ok: false, error: 'No estás en una partida.' });
     room.touched = Date.now();
-    const res = room.engine.api.mpAct(player.hid, String(name || ''), Array.isArray(args) ? args : []);
+    name = String(name || ''); args = Array.isArray(args) ? args : [];
+    // Minijuego: la puntuación viene del teléfono (el motor ya la limita a 18 de oro y 1 por turno);
+    // además debe haberse iniciado en este turno y haber durado lo que dura el juego.
+    if (name === 'claimMinigame') {
+      const mg = player.mg;
+      if (!mg || mg.key !== args[0] || mg.turnKey !== room.turnKey) return reply(ack, { ok: false, error: 'Primero juega el minijuego.' });
+      if (Date.now() - mg.at < MG_MIN_MS) return reply(ack, { ok: false, error: 'El minijuego aún no termina.' });
+      player.mg = null;
+    }
+    const res = room.engine.api.mpAct(player.hid, name, args);
     reply(ack, res);
     sendState(room);
+  });
+
+  socket.on('mgStart', ({ key } = {}, ack) => {
+    const { room, player } = ctxOf(socket);
+    if (!room || !room.engine || !player || !player.hid) return reply(ack, { ok: false, error: 'No estás en una partida.' });
+    if (room.engine.api.currentHid() !== player.hid) return reply(ack, { ok: false, error: 'No es tu turno.' });
+    if (!REF.minigames.includes(key)) return reply(ack, { ok: false, error: 'Minijuego inválido.' });
+    player.mg = { key, turnKey: room.turnKey, at: Date.now() };
+    reply(ack, { ok: true });
   });
 
   socket.on('endTurn', (_d, ack) => {
