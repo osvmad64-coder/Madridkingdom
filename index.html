@@ -773,6 +773,40 @@ function buildEdges(nodes){
   return Array.from(edgeSet).map(k=>k.split('-').map(Number));
 }
 
+// Biomas y nombres de tierras (compartido por todos los generadores de mapa).
+function mapBiomePicker(rnd){
+  const usedNames = new Set();
+  function nameFor(biome){
+    const opts = biome.names.filter(n=>!usedNames.has(n));
+    const pick = (opts.length?opts:biome.names)[Math.floor(rnd()*(opts.length?opts.length:biome.names.length))];
+    usedNames.add(pick);
+    return pick;
+  }
+  const poolCopy = [...BIOME_POOL].sort(()=>rnd()-0.5);
+  let biomeCursor = 0;
+  function nextBiome(){ if(biomeCursor>=poolCopy.length){ poolCopy.push(...BIOME_POOL); } return poolCopy[biomeCursor++]; }
+  return { nameFor, nextBiome };
+}
+// Faction identities: player + ancient-world names for AI kingdoms, teams per mode.
+function buildMapFactions(modeDef, factionCount, opts, rnd){
+  const shuffledNames = [...FACTION_NAMES].sort(()=>rnd()-0.5);
+  const factions = [];
+  for(let fi=0; fi<factionCount; fi++){
+    const isPlayer = fi===0;
+    const id = isPlayer ? 'player' : `ai${fi}`;
+    const color = isPlayer ? PLAYER_COLOR : AI_COLORS[(fi-1)%AI_COLORS.length];
+    let team;
+    if(modeDef.teamPlan==='duel') team = isPlayer?'A':'B';
+    else if(modeDef.teamPlan==='ffa') team = 'T'+fi;
+    else if(modeDef.teamPlan==='2v2') team = (fi===0||fi===1) ? 'A' : 'B';
+    let fname = shuffledNames[fi];
+    if(isPlayer && opts.playerName) fname = opts.playerName;
+    if(!isPlayer && opts.enemyNames && opts.enemyNames[fi-1]) fname = opts.enemyNames[fi-1];
+    factions.push({ id, name:fname, color, isPlayer, team });
+  }
+  return factions;
+}
+
 function generateMap(mode, opts){
   opts = opts || {};
   const modeDef = GAME_MODES[mode];
@@ -842,33 +876,8 @@ function generateMap(mode, opts){
     }
   });
 
-  const usedNames = new Set();
-  function nameFor(biome){
-    const opts = biome.names.filter(n=>!usedNames.has(n));
-    const pick = (opts.length?opts:biome.names)[Math.floor(Math.random()*(opts.length?opts.length:biome.names.length))];
-    usedNames.add(pick);
-    return pick;
-  }
-  const poolCopy = [...BIOME_POOL].sort(()=>Math.random()-0.5);
-  let biomeCursor = 0;
-  function nextBiome(){ if(biomeCursor>=poolCopy.length){ poolCopy.push(...BIOME_POOL); } return poolCopy[biomeCursor++]; }
-
-  // Faction identities: player + ancient-world names for AI kingdoms, teams per mode.
-  const shuffledNames = [...FACTION_NAMES].sort(()=>Math.random()-0.5);
-  const factions = [];
-  for(let fi=0; fi<factionCount; fi++){
-    const isPlayer = fi===0;
-    const id = isPlayer ? 'player' : `ai${fi}`;
-    const color = isPlayer ? PLAYER_COLOR : AI_COLORS[(fi-1)%AI_COLORS.length];
-    let team;
-    if(modeDef.teamPlan==='duel') team = isPlayer?'A':'B';
-    else if(modeDef.teamPlan==='ffa') team = 'T'+fi;
-    else if(modeDef.teamPlan==='2v2') team = (fi===0||fi===1) ? 'A' : 'B';
-    let fname = shuffledNames[fi];
-    if(isPlayer && opts.playerName) fname = opts.playerName;
-    if(!isPlayer && opts.enemyNames && opts.enemyNames[fi-1]) fname = opts.enemyNames[fi-1];
-    factions.push({ id, name:fname, color, isPlayer, team });
-  }
+  const { nameFor, nextBiome } = mapBiomePicker(Math.random);
+  const factions = buildMapFactions(modeDef, factionCount, opts, Math.random);
 
   const idxToOwner = {};
   factionNodeIdx.forEach((idxs,fi)=>{ idxs.forEach(i=>{ idxToOwner[i]=factions[fi].id; }); });
@@ -890,6 +899,213 @@ function generateMap(mode, opts){
   });
   const edges = edgesIdx.map(([a,b])=>[a+1,b+1]);
   return { territories, edges, factions };
+}
+
+// ================= MAPAS DE "ASEDIO DE CASTILLOS" =================
+// Mapas grandes (≈30–36 territorios) en formato vertical, cómodo en teléfono. Hay 8 diseños con rutas distintas
+// (ríos, cordilleras, lagos, islas...). El mapa se genera UNA sola vez dentro de mpStartGame: en el servidor
+// (online) o en el propio teléfono (Mismo teléfono), y viaja en el estado de la partida; nadie lo regenera.
+const CASTLE_MAP_W = 960, CASTLE_MAP_H = 1200;
+// Ataques necesarios (mínimo) desde cualquier tierra inicial rival hasta tu castillo, según cuántos reinos hay.
+// Con 2 reinos hacen falta 6 ataques: imposible en el primer turno (máximo 5 PA con Corcel).
+function castleSafeDistance(k){ return k<=2 ? 6 : (k===3 ? 5 : 4); }
+function cmInside(x, y, pad){
+  const cx=CASTLE_MAP_W/2, cy=CASTLE_MAP_H/2, ax=cx-40-pad, ay=cy-40-pad;
+  return Math.pow(Math.abs(x-cx)/ax,7) + Math.pow(Math.abs(y-cy)/ay,7) <= 1;
+}
+function cmPull(p){ // mete el punto dentro de la costa sin tocar el borde del mapa
+  const cx=CASTLE_MAP_W/2, cy=CASTLE_MAP_H/2; let [x,y]=p;
+  for(let i=0;i<40 && !cmInside(x,y,78);i++){ x=cx+(x-cx)*0.97; y=cy+(y-cy)*0.97; }
+  return [x,y];
+}
+// Con más reinos, el mapa gana una fila de territorios (≈40) para que los castillos sigan separados.
+function cmRows(k){ return k<=2 ? 7 : (k<=4 ? 8 : 9); }
+function cmExtra(k){ return k<=2 ? 0 : (k<=4 ? 6 : 11); }
+function cmHex(rng, cols, rows){
+  const x0=150, x1=CASTLE_MAP_W-150, y0=140, y1=CASTLE_MAP_H-130;
+  const dx=(x1-x0)/(cols-0.5), dy=(y1-y0)/(rows-1), pts=[];
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    pts.push(cmPull([x0+c*dx+(r%2)*dx*0.5+(rng()-0.5)*dx*0.32, y0+r*dy+(rng()-0.5)*dy*0.32]));
+  }
+  return pts;
+}
+function cmScatter(rng, n, minD, ok){ // puntos al azar bien separados (distribución orgánica)
+  const pts=[];
+  for(let k=0;k<6000 && pts.length<n;k++){
+    const p=[100+rng()*(CASTLE_MAP_W-200), 100+rng()*(CASTLE_MAP_H-200)];
+    if(!cmInside(p[0],p[1],78) || (ok && !ok(p))) continue;
+    if(pts.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<minD)) continue;
+    pts.push(p);
+  }
+  return pts;
+}
+function cmSegCross(p1,p2,p3,p4){
+  const d=(a,b,c)=>(c[0]-a[0])*(b[1]-a[1])-(c[1]-a[1])*(b[0]-a[0]);
+  const d1=d(p3,p4,p1), d2=d(p3,p4,p2), d3=d(p1,p2,p3), d4=d(p1,p2,p4);
+  return ((d1>0&&d2<0)||(d1<0&&d2>0)) && ((d3>0&&d4<0)||(d3<0&&d4>0));
+}
+const CX = CASTLE_MAP_W/2, CY = CASTLE_MAP_H/2;
+// Cada diseño: cómo se reparten los territorios y qué fronteras son infranqueables.
+//  region(p): fronteras entre regiones distintas quedan bloqueadas, salvo los "pasos" más cercanos a cada ancla.
+//  block(p,q): bloqueo directo por geometría (lagos, crestas sueltas).
+const CASTLE_MAPS = [
+  { key:'llanuras', name:'Llanuras Abiertas', icon:'🌾', wall:'ridge', desc:'Campo abierto: muchas rutas, sin obstáculos.',
+    points:(rng,k)=>cmHex(rng,5,cmRows(k)) },
+  { key:'rio', name:'El Gran Río', icon:'🌊', wall:'river', desc:'Un río parte el reino; solo dos puentes lo cruzan.',
+    points:(rng,k)=>cmHex(rng,5,cmRows(k)),
+    setup(rng){ const ph=rng()*6.28, base=CY+(rng()-0.5)*90; this._y=x=>base+55*Math.sin(x/140+ph); },
+    region(p){ return p[1] < this._y(p[0]) ? 0 : 1; },
+    passes(){ return [[190,this._y(190)],[CASTLE_MAP_W-190,this._y(CASTLE_MAP_W-190)]]; } },
+  { key:'terrazas', name:'Las Terrazas', icon:'⛰️', wall:'ridge', desc:'Dos cordilleras en zigzag: el camino serpentea.',
+    points:(rng,k)=>cmHex(rng,5,cmRows(k)),
+    setup(rng){ this._flip=rng()<0.5; this._a=CASTLE_MAP_H*0.36+(rng()-0.5)*50; this._b=CASTLE_MAP_H*0.64+(rng()-0.5)*50; },
+    region(p){ return p[1]<this._a ? 0 : (p[1]<this._b ? 1 : 2); },
+    passes(){ const L=170, R=CASTLE_MAP_W-170, s=this._flip;
+      return [[s?L:R,this._a],[CX,this._a],[s?R:L,this._b],[CX,this._b]]; } },
+  { key:'valles', name:'Valles Gemelos', icon:'🏞️', wall:'ridge', desc:'Una cordillera central: se rodea por el norte o por el sur.',
+    points:(rng,k)=>cmHex(rng,5,cmRows(k)),
+    setup(rng){ this._a=[CX+(rng()-0.5)*90, CASTLE_MAP_H*0.25+rng()*50]; this._b=[CX+(rng()-0.5)*90, CASTLE_MAP_H*0.75-rng()*50]; },
+    block(p,q){ return cmSegCross(p,q,this._a,this._b); },
+    passes(){ return [[(this._a[0]+this._b[0])/2, (this._a[1]+this._b[1])/2]]; } },
+  { key:'lago', name:'Lago de la Corona', icon:'💧', wall:'river', desc:'Un gran lago en el centro y una sola calzada que lo cruza.',
+    points:(rng,k)=>{ const rx=250+rng()*30, ry=300+rng()*40; return cmScatter(rng, 32+cmExtra(k), 118-cmExtra(k), p=>Math.pow((p[0]-CX)/rx,2)+Math.pow((p[1]-CY)/ry,2)>1); },
+    setup(rng){ this._rx=175; this._ry=230; this._pass=rng()<0.5?[CX,CY-60]:[CX,CY+60]; },
+    block(p,q){ for(let i=1;i<10;i++){ const x=p[0]+(q[0]-p[0])*i/10, y=p[1]+(q[1]-p[1])*i/10; if(Math.pow((x-CX)/this._rx,2)+Math.pow((y-CY)/this._ry,2)<1) return true; } return false; },
+    passes(){ return [this._pass]; },
+    extra(){ return { lake:{ cx:CX, cy:CY, rx:this._rx, ry:this._ry } }; } },
+  { key:'regiones', name:'Cuatro Provincias', icon:'🧭', wall:'ridge', desc:'Cuatro provincias unidas en anillo por pasos de montaña.',
+    points:(rng,k)=>cmHex(rng,5,cmRows(k)),
+    setup(rng){ this._x=CX+(rng()-0.5)*60; this._y=CY+(rng()-0.5)*80; },
+    region(p){ return (p[0]<this._x?0:1) + (p[1]<this._y?0:2); },
+    passes(){ return [[this._x, this._y*0.45],[this._x, this._y+(CASTLE_MAP_H-this._y)*0.55],[CX*0.45,this._y],[CX*1.55,this._y]]; } },
+  { key:'islas', name:'Archipiélago', icon:'🏝️', wall:'river', desc:'Islas unidas por puentes: cada puente es un punto clave.',
+    points:(rng,k)=>cmScatter(rng, 34+cmExtra(k), 112-cmExtra(k)),
+    setup(rng){ const c=[[CX*0.62,CASTLE_MAP_H*0.2],[CX*1.4,CASTLE_MAP_H*0.34],[CX*0.6,CASTLE_MAP_H*0.52],[CX*1.4,CASTLE_MAP_H*0.68],[CX*0.7,CASTLE_MAP_H*0.84]];
+      this._c=c.map(([x,y])=>[x+(rng()-0.5)*80, y+(rng()-0.5)*50]); },
+    region(p){ let b=0; this._c.forEach((c,i)=>{ if(Math.hypot(p[0]-c[0],p[1]-c[1])<Math.hypot(p[0]-this._c[b][0],p[1]-this._c[b][1])) b=i; }); return b; },
+    passes(){ const c=this._c, mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      return [mid(c[0],c[1]),mid(c[1],c[2]),mid(c[2],c[3]),mid(c[3],c[4]),mid(c[0],c[2]),mid(c[2],c[4])]; } },
+  { key:'salvaje', name:'Tierras Salvajes', icon:'🌲', wall:'ridge', desc:'Terreno irregular con crestas sueltas y atajos inesperados.',
+    points:(rng,k)=>cmScatter(rng, 33+cmExtra(k), 115-cmExtra(k)),
+    setup(rng){ this._r=Array.from({length:4},()=>{ const x=160+rng()*(CASTLE_MAP_W-320), y=200+rng()*(CASTLE_MAP_H-400), a=rng()*Math.PI, L=150+rng()*120;
+      return [[x-Math.cos(a)*L,y-Math.sin(a)*L],[x+Math.cos(a)*L,y+Math.sin(a)*L]]; }); },
+    block(p,q){ return this._r.some(([a,b])=>cmSegCross(p,q,a,b)); } },
+];
+function cmSeed(){
+  try{ const c=(typeof crypto!=='undefined' && crypto.getRandomValues) ? crypto : null; if(c){ const a=new Uint32Array(1); c.getRandomValues(a); return a[0]||1; } }catch(e){}
+  return Math.floor(Math.random()*4294967295)||1;
+}
+function cmAllDist(n, adj){
+  return Array.from({length:n},(_,s)=>{ const d=Array(n).fill(-1); d[s]=0; const q=[s];
+    while(q.length){ const c=q.shift(); for(const nb of adj[c]) if(d[nb]<0){ d[nb]=d[c]+1; q.push(nb); } } return d; });
+}
+// Castillos que siguen conectados entre sí aunque caiga cualquier territorio intermedio (≥2 rutas).
+function cmTwoRoutes(n, adj, castles){
+  for(let v=0; v<n; v++){
+    if(castles.includes(v)) continue;
+    const seen=new Set([v, castles[0]]), q=[castles[0]];
+    while(q.length){ const c=q.shift(); for(const nb of adj[c]) if(!seen.has(nb)){ seen.add(nb); q.push(nb); } }
+    if(castles.some(c=>!seen.has(c))) return false;
+  }
+  return true;
+}
+// Elige castillos y tierras iniciales justos. Devuelve null si este mapa no permite un reparto justo.
+function cmPlaceCastles(n, adj, D, k, rng){
+  const safe = castleSafeDistance(k), minCastle = safe;
+  const cand = [...Array(n).keys()].filter(i=>adj[i].length>=3);
+  const zoneOf = cs=>{ const z=cs.map(()=>0); for(let v=0;v<n;v++){ const ds=cs.map(c=>D[c][v]), m=Math.min(...ds), w=cs.filter((_,i)=>ds[i]===m); w.forEach(c=>{ z[cs.indexOf(c)]+=1/w.length; }); } return z; };
+  const room = c=>D[c].filter(d=>d>=1 && d<=2).length;
+  const fair = cs=>{
+    for(let i=0;i<cs.length;i++) for(let j=i+1;j<cs.length;j++) if(D[cs[i]][cs[j]]<minCastle) return false;
+    const near = cs.map(c=>Math.min(...cs.filter(o=>o!==c).map(o=>D[c][o])));
+    if(Math.max(...near)-Math.min(...near) > (k===2?0:1)) return false;
+    const z = zoneOf(cs); if(Math.max(...z) > Math.min(...z)*(k===2?1.3:1.5)) return false;
+    const r = cs.map(room); if(Math.max(...r)-Math.min(...r) > 2) return false;
+    return cmTwoRoutes(n, adj, cs);
+  };
+  const valid=[];
+  if(k===2){ for(let a=0;a<cand.length;a++) for(let b=a+1;b<cand.length;b++){ const cs=[cand[a],cand[b]]; if(fair(cs)) valid.push(cs); } }
+  else for(let t=0;t<3000 && valid.length<80;t++){
+    // Cada castillo nuevo se elige al azar entre los lugares que ya quedan lejos de los anteriores.
+    const cs=[cand[Math.floor(rng()*cand.length)]];
+    while(cs.length<k){ const pool=cand.filter(v=>cs.every(c=>D[c][v]>=minCastle)); if(!pool.length) break; cs.push(pool[Math.floor(rng()*pool.length)]); }
+    if(cs.length===k && fair(cs)) valid.push(cs);
+  }
+  if(!valid.length) return null;
+  const extra = k<=3 ? 1 : 0; // misma regla que los mapas actuales: 2 tierras iniciales con ≤3 reinos, 1 con más
+  for(let tries=0; tries<12; tries++){
+    const cs = valid[Math.floor(rng()*valid.length)].slice().sort(()=>rng()-0.5);
+    if(!extra) return { castles:cs, starts:cs.map(c=>[c]), safe };
+    // Tierra inicial extra: la vecina que queda más lejos de los rivales, igualando la distancia de todos.
+    const opts = cs.map(c=>adj[c].filter(v=>!cs.includes(v)));
+    let best=null, bestKey=null;
+    const walk=(i, pick)=>{
+      if(i===cs.length){
+        if(new Set(pick).size<pick.length) return;
+        const owned = cs.map((c,j)=>[c,pick[j]]);
+        const reach = cs.map((c,j)=>Math.min(...owned.filter((_,o)=>o!==j).flat().map(v=>D[v][c]))); // ataques que necesita el rival para tocar este castillo
+        if(Math.min(...reach) < safe) return;
+        const key=[Math.max(...reach)-Math.min(...reach), rng()];
+        if(!bestKey || key[0]<bestKey[0] || (key[0]===bestKey[0] && key[1]<bestKey[1])){ bestKey=key; best=pick.slice(); }
+        return;
+      }
+      for(const v of opts[i]){ pick.push(v); walk(i+1, pick); pick.pop(); }
+    };
+    walk(0, []);
+    if(best && bestKey[0] <= (k===2?0:1)) return { castles:cs, starts:cs.map((c,j)=>[c,best[j]]), safe };
+  }
+  return null;
+}
+function generateCastleMap(mode, opts){
+  opts = opts || {};
+  const modeDef = GAME_MODES[mode];
+  const k = 1 + modeDef.aiCount, humans = opts.humanCount || 1;
+  const seed = (opts.seed>>>0) || cmSeed();
+  const rng = mulberry32(seed);
+  const order = CASTLE_MAPS.map((_,i)=>i).sort(()=>rng()-0.5);
+  if(opts.mapKey){ const i=CASTLE_MAPS.findIndex(m=>m.key===opts.mapKey); if(i>=0){ order.splice(order.indexOf(i),1); order.unshift(i); } }
+  for(let attempt=0; attempt<order.length*6; attempt++){
+    const tpl = Object.create(CASTLE_MAPS[order[Math.floor(attempt/6)]]);
+    if(tpl.setup) tpl.setup(rng);
+    const pts = tpl.points(rng, k);
+    if(pts.length<26) continue;
+    const nodes = pts.map(([x,y])=>({x:Math.round(x), y:Math.round(y)}));
+    if(nodes.some((a,i)=>nodes.some((b,j)=>j>i && Math.hypot(a.x-b.x,a.y-b.y)<90))) continue;
+    const vor = voronoiAdjacency(nodes, CASTLE_MAP_W, CASTLE_MAP_H);
+    const P = i=>[nodes[i].x, nodes[i].y];
+    let blocked = vor.filter(([a,b])=> (tpl.region && tpl.region(P(a))!==tpl.region(P(b))) || (tpl.block && tpl.block(P(a),P(b))));
+    (tpl.passes ? tpl.passes() : []).forEach(an=>{
+      let bi=-1, bd=1e9;
+      blocked.forEach(([a,b],i)=>{ const d=Math.hypot((nodes[a].x+nodes[b].x)/2-an[0], (nodes[a].y+nodes[b].y)/2-an[1]); if(d<bd){ bd=d; bi=i; } });
+      if(bi>=0) blocked.splice(bi,1);
+    });
+    const bset = new Set(blocked.map(([a,b])=>a+'-'+b));
+    const edgesIdx = vor.filter(([a,b])=>!bset.has(a+'-'+b));
+    const n = nodes.length, adj = Array.from({length:n},()=>[]);
+    edgesIdx.forEach(([a,b])=>{ adj[a].push(b); adj[b].push(a); });
+    const D = cmAllDist(n, adj);
+    if(D[0].some(d=>d<0)) continue; // el mapa debe estar conectado
+    const place = cmPlaceCastles(n, adj, D, k, rng);
+    if(!place) continue;
+    const { nameFor, nextBiome } = mapBiomePicker(rng);
+    const factions = buildMapFactions(modeDef, k, opts, rng);
+    const ownerOf = {}, castleOf = {};
+    place.starts.forEach((idxs,fi)=>{ idxs.forEach(i=>{ ownerOf[i]=factions[fi].id; }); castleOf[place.castles[fi]]=factions[fi].id; });
+    const territories = nodes.map((nd,i)=>{
+      const biome = nextBiome(), name = nameFor(biome), shapeSeed = rng();
+      if(ownerOf[i]){
+        const fi = factions.findIndex(f=>f.id===ownerOf[i]);
+        const t = { id:i+1, name, x:nd.x, y:nd.y, owner:ownerOf[i], troops:5, tier: fi<humans ? 1 : 2, isBoss:false, biome, shapeSeed };
+        if(castleOf[i]) t.castle = castleOf[i];
+        return t;
+      }
+      return { id:i+1, name, x:nd.x, y:nd.y, owner:'neutral', troops:2+Math.floor(rng()*2), tier: rng()<0.3?2:1, isBoss:false, biome, shapeSeed };
+    });
+    const src = CASTLE_MAPS[order[Math.floor(attempt/6)]];
+    return { territories, edges:edgesIdx.map(([a,b])=>[a+1,b+1]), walls:blocked.map(([a,b])=>[a+1,b+1]), factions,
+      w:CASTLE_MAP_W, h:CASTLE_MAP_H, info:Object.assign({ key:src.key, name:src.name, icon:src.icon, desc:src.desc, wall:src.wall, seed, safe:place.safe }, tpl.extra ? tpl.extra() : {}) };
+  }
+  return null; // sin mapa justo: se usa el mapa clásico
 }
 
 const CLASSES = {
@@ -2394,8 +2610,13 @@ function mpStartGame(cfg){
   const H=cfg.humans.length, total=Math.max(2, Math.min(5, H+(cfg.ai||0))), aiCount=total-1;
   GAME_MODES.mp = { label:'Multijugador', desc:'Partida online', aiCount, teamPlan:'ffa' };
   S.diffKey=diff.key; S.diff=diff; S.modeKey='mp'; S.mode=GAME_MODES.mp;
-  const map=generateMap('mp',{ playerName:cfg.humans[0].name, enemyNames:cfg.humans.slice(1).map(h=>h.name) });
+  const goal = MP_GOALS[cfg.goal] ? cfg.goal : 'classic';
+  const mapOpts = { playerName:cfg.humans[0].name, enemyNames:cfg.humans.slice(1).map(h=>h.name) };
+  // Asedio de castillos: mapa grande con uno de los diseños y castillos al azar (justos). Se genera aquí una sola vez
+  // y queda en el estado; si no se lograra un reparto justo, se usa el mapa clásico.
+  const map = (goal==='castles' && !cfg.legacyMap && generateCastleMap('mp', Object.assign({ humanCount:H, seed:cfg.mapSeed, mapKey:cfg.mapKey }, mapOpts))) || generateMap('mp', mapOpts);
   S.territories=map.territories; S.edges=map.edges; S.factions=map.factions;
+  if(map.w){ S.mapW=map.w; S.mapH=map.h; S.walls=map.walls; S.mapInfo=map.info; }
   S.grudges={}; S.aiTruces=[]; S.aiGold={};
   renameOwner('player', cfg.humans[0].hid);
   for(let k=1;k<H;k++) renameOwner('ai'+k, cfg.humans[k].hid);
@@ -2408,14 +2629,13 @@ function mpStartGame(cfg){
   });
   aiFactions().forEach(f=>{ S.aiGold[f.id]=10; S.territories.filter(t=>t.owner===f.id).forEach(t=>{ t.troops=Math.max(1,t.troops+diff.startTroopsAdj); }); });
   S.objective={type:'standard'}; S.maxTurns=cfg.turns||20; S.turn=1; S.phase='play'; S.log=[]; S.toasts=[];
-  const goal = MP_GOALS[cfg.goal] ? cfg.goal : 'classic';
   if(goal!=='classic'){
     S.maxTurns = MP_GOALS[goal].turns;
     const bt = S.territories.find(t=>t.isBoss);
     if(bt){ const b=BIOME_POOL[Math.floor(Math.random()*BIOME_POOL.length)]; bt.isBoss=false; bt.biome=b; bt.name=b.names[Math.floor(Math.random()*b.names.length)]; bt.owner='neutral'; bt.troops=3; bt.tier=2; }
   }
   if(goal==='castles'){
-    S.factions.forEach(f=>{ const home=S.territories.find(t=>t.owner===f.id); if(home){ home.castle=f.id; home.troops+=3; } });
+    S.factions.forEach(f=>{ const home=S.territories.find(t=>t.castle===f.id) || S.territories.find(t=>t.owner===f.id); if(home){ home.castle=f.id; home.troops+=3; } });
   }
   S.mp={ seats:{}, order:cfg.humans.map(h=>h.hid), current:0, active:null, outbox:[], winner:null, reason:null, goal };
   cfg.humans.forEach(h=>{
@@ -3410,7 +3630,7 @@ function tutStart(){
   // Estado de entrenamiento propio (mismo motor, datos separados)
   LOCAL.players=[{ id:'p0', hid:'h0', name:'Aprendiz', cls:'guerrero', color:IDENTITY_COLORS[0], crest:{shape:'heater',pattern:'fess',emblem:'🦁',metal:'#e6c765'} }];
   LOCAL.inbox={h0:[]}; LOCAL.srv=null; LOCAL.active=true; LOCAL.lastHid=null; LOCAL.awaitingPass=false;
-  localServerRun(()=>{ mpStartGame({ local:true, goal:'castles', humans:[{hid:'h0', name:'Aprendiz', color:IDENTITY_COLORS[0], cls:'guerrero', crest:LOCAL.players[0].crest}], ai:1, diff:'facil' }); });
+  localServerRun(()=>{ mpStartGame({ local:true, goal:'castles', legacyMap:true, humans:[{hid:'h0', name:'Aprendiz', color:IDENTITY_COLORS[0], cls:'guerrero', crest:LOCAL.players[0].crest}], ai:1, diff:'facil' }); });
   const srv=LOCAL.srv; srv.tutorial=true; srv.aiSleepTurns=999;
   const aiId=srv.factions.find(f=>!f.human).id;
   const castle=srv.territories.find(t=>t.castle==='h0'); castle.troops=6; castle.tier=1;
