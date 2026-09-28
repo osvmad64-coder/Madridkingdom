@@ -81,6 +81,7 @@
   }
   .map-card{padding:8px;}
   #mapSvg{width:100%; height:auto; display:block; border-radius:4px;}
+  #mapSvg.tall{ margin:0 auto; }
   .terr{cursor:pointer;}
 
   .menu-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:14px 0 16px; }
@@ -4055,7 +4056,7 @@ function renderHud(){
           <h1>Madrid Kingdom</h1>
           <p>${storyChapter!==null?`📜 Cap. ${storyChapter+1}: ${STORY[storyChapter].title} · `:''}${S.mp?factionCrestHTML('player',15):''}${playerFaction.name} · ${CLASSES[p.cls].emoji} ${CLASSES[p.cls].label} · Nv ${p.level} · ${S.mode.label} · ${S.diff.emoji} ${S.diff.label}</p>
           ${storyChapter!==null?`<p class="hint obj-line">🎯 ${objectiveText()}</p>`:''}
-          ${S.mp && S.mpLocal? `<p class="hint obj-line">${MP_GOALS[mpGoal()].icon} ${MP_GOALS[mpGoal()].name}${mpGoal()==='dominion'?` · quedan ${Math.max(0,S.maxTurns-S.turn+1)} turno(s)`:''} — ${MP_GOALS[mpGoal()].short}</p>`:''}
+          ${S.mp && S.mpLocal? `<p class="hint obj-line">${MP_GOALS[mpGoal()].icon} ${MP_GOALS[mpGoal()].name}${mpGoal()==='dominion'?` · quedan ${Math.max(0,S.maxTurns-S.turn+1)} turno(s)`:''} — ${MP_GOALS[mpGoal()].short}${S.mapInfo?` · ${S.mapInfo.icon} Mapa: ${S.mapInfo.name}`:''}</p>`:''}
           ${S.mp? `<p class="mp-turn ${mpIsMyTurn()?'mine':''}">${S.over?'🏁 Partida terminada':(LOCAL.active?`🟢 Turno de ${mpCurrentName()}`:(mpIsMyTurn()?'🟢 Tu turno':`⏳ Esperando a ${mpCurrentName()}…`))}${MP.room && MP.room.code!=='LOCAL'?` · Sala ${MP.room.code}`:''}</p>`:''}
         </div>
         <div class="turn-badge">Turno ${S.turn} / ${S.maxTurns}</div>
@@ -4545,7 +4546,7 @@ function teamLabel(f){
 
 // ================= Capa visual del mapa (solo estética: no toca reglas ni adyacencias) =================
 let MAP_ART = { key:null };
-const MAP_W = 960, MAP_H = 600;
+let MAP_W = 960, MAP_H = 600; // tamaño del lienzo: el de la partida (Asedio de castillos usa un mapa vertical más grande)
 const INK = '#2a1c10';
 const TERRAIN_TINT = { mount:'#8d8472', hills:'#a08c55', forest:'#2f5a32', waves:'#2f7d8a', plains:'#c7b05a', swamp:'#4d5a32', snow:'#eef3f6', ruins:'#cdb888' };
 
@@ -4727,6 +4728,27 @@ function buildRivers(land, rng){
   });
   return out;
 }
+// Fronteras infranqueables (cordilleras o ríos) de los mapas de Asedio de castillos: se dibujan sobre la frontera exacta.
+function buildWalls(cells, rng){
+  if(!S.walls || !S.walls.length) return '';
+  const river = S.mapInfo && S.mapInfo.wall==='river';
+  const lk = S.mapInfo && S.mapInfo.lake;
+  const lake = lk ? `<ellipse cx="${lk.cx}" cy="${lk.cy}" rx="${lk.rx+14}" ry="${lk.ry+14}" fill="#1d4a5c" opacity=".55"/><ellipse cx="${lk.cx}" cy="${lk.cy}" rx="${lk.rx}" ry="${lk.ry}" fill="#3f8ea6" stroke="#a5ddd2" stroke-width="3" stroke-opacity=".7"/>`+
+    `<ellipse cx="${lk.cx}" cy="${lk.cy}" rx="${lk.rx*0.7}" ry="${lk.ry*0.7}" fill="none" stroke="#d8f0f4" stroke-width="1.2" stroke-dasharray="6 12" opacity=".5"/>${artBoat(lk.cx+lk.rx*0.35, lk.cy+lk.ry*0.4)}` : '';
+  return lake + S.walls.map(([a,b])=>{
+    const A=byId(a), B=byId(b), poly=cells[a-1]; if(!A||!B||!poly) return '';
+    const on = poly.filter(p=>Math.abs(Math.hypot(p[0]-A.x,p[1]-A.y)-Math.hypot(p[0]-B.x,p[1]-B.y))<0.75);
+    let p=null, q=null, best=0;
+    for(let i=0;i<on.length;i++) for(let j=i+1;j<on.length;j++){ const d=Math.hypot(on[i][0]-on[j][0],on[i][1]-on[j][1]); if(d>best){ best=d; p=on[i]; q=on[j]; } }
+    if(!p) return '';
+    const d=`M${r1(p[0])},${r1(p[1])}L${r1(q[0])},${r1(q[1])}`;
+    if(river) return `<path d="${d}" stroke="#1d4a5c" stroke-width="13" stroke-linecap="round" opacity=".6"/><path d="${d}" stroke="#5fa8c0" stroke-width="8" stroke-linecap="round"/><path d="${d}" stroke="#d8f0f4" stroke-width="1" stroke-dasharray="4 9" opacity=".7"/>`;
+    let g=`<path d="${d}" stroke="${INK}" stroke-width="7" stroke-linecap="round" opacity=".45"/>`;
+    const n=Math.max(1, Math.round(best/26));
+    for(let i=0;i<n;i++){ const t=(i+0.5)/n; g+=artMountain(p[0]+(q[0]-p[0])*t+(rng()-0.5)*4, p[1]+(q[1]-p[1])*t+7, 11+rng()*5, rng()<0.3); }
+    return g;
+  }).join('');
+}
 function buildRoads(rng){
   return S.edges.map(([a,b])=>{
     const A=byId(a), B=byId(b); if(!A||!B) return '';
@@ -4799,7 +4821,8 @@ function artCity(t){
     `<line x1="10" y1="-19" x2="10" y2="-28" stroke="${INK}" stroke-width=".8"/><path d="M10 -28L19 -25.5L10 -23Z" fill="${col}" stroke="${INK}" stroke-width=".5"/>`;
 }
 function ensureMapArt(){
-  const key = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length;
+  MAP_W = S.mapW || 960; MAP_H = S.mapH || 600;
+  const key = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length+'#'+MAP_W+'x'+MAP_H+'#'+(S.walls||[]).length;
   if(MAP_ART.key===key) return MAP_ART;
   const cells = voronoiCells(S.territories, MAP_W, MAP_H);
   const seed = hashStr(key) || 99;
@@ -4830,15 +4853,16 @@ function ensureMapArt(){
     ocean: buildOceanDecor(land, mulberry32(seed^0x1234)),
     rivers: buildRivers(land, mulberry32(seed^0x5bd1)),
     roads: buildRoads(mulberry32(seed^0x77)),
+    walls: buildWalls(cells, mulberry32(seed^0x3c1)),
     frame: buildFrame() };
   return MAP_ART;
 }
 
 function renderMapCard(){
   const card = el(`<div class="card map-card"></div>`);
+  const A = ensureMapArt();
   const w=MAP_W, h=MAP_H;
   const stage = DAYCYCLE[Math.floor((S.turn-1)/2)%DAYCYCLE.length];
-  const A = ensureMapArt();
 
   let allianceSvg = S.edges.map(([a,b])=>{
     const P1=byId(a), P2=byId(b);
@@ -4910,14 +4934,14 @@ function renderMapCard(){
   });
 
   card.appendChild(el(`
-    <svg id="mapSvg" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa de Madrid Kingdom" style="--odc:${odilioCharge()?(ODILIO[S.player.cls]||ODILIO.guerrero).color:'#f3d77a'}">
+    <svg id="mapSvg" class="${h>w?'tall':''}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa de Madrid Kingdom" style="--odc:${odilioCharge()?(ODILIO[S.player.cls]||ODILIO.guerrero).color:'#f3d77a'};${h>w?`max-width:min(100%, calc(78vh * ${(w/h).toFixed(3)}));`:''}">
       <defs>${A.defs}</defs>
       ${A.oceanBase}
       ${A.ocean}
       ${A.coastHalo}
       <g class="landmass" clip-path="url(#landClip)">${baseSvg}</g>
       ${A.coastTop}
-      <g clip-path="url(#landClip)" style="pointer-events:none">${A.rivers}</g>
+      <g clip-path="url(#landClip)" style="pointer-events:none">${A.rivers}${A.walls}</g>
       <g style="pointer-events:none">${A.roads}</g>
       ${allianceSvg}
       ${topSvg}
