@@ -522,7 +522,10 @@
 
   /* ====== Modos de juego y logros (pasa el teléfono) ====== */
   .goal-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
-  @media (max-width:520px){ .goal-grid{ grid-template-columns:1fr; } }
+  .goal-grid.g4{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  @media (max-width:520px){ .goal-grid, .goal-grid.g4{ grid-template-columns:1fr; } }
+  .goal-card:disabled{ opacity:1; }
+  .goal-card:disabled:not(.chosen){ opacity:.55; }
   .goal-card{ min-height:64px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; text-align:center; padding:8px 6px; }
   .goal-card b{ font-size:13px; }
   .goal-card small{ font-family:'Spectral',serif; font-size:11px; opacity:.85; line-height:1.25; }
@@ -2383,7 +2386,10 @@ function mpSwapOut(){
 }
 function mpStartGame(cfg){
   newGame();
-  S.mpLocal = !!cfg.local;
+  // S.mpLocal = reglas completas de "Mismo teléfono" (la referencia del juego): economía, combate, XP,
+  // El Gran Odilio, minijuegos y logros. El servidor online las activa con fullRules; las partidas
+  // online guardadas antes de este cambio conservan sus reglas originales.
+  S.mpLocal = !!(cfg.local || cfg.fullRules);
   const diff=DIFFICULTIES[cfg.diff]||DIFFICULTIES.media;
   const H=cfg.humans.length, total=Math.max(2, Math.min(5, H+(cfg.ai||0))), aiCount=total-1;
   GAME_MODES.mp = { label:'Multijugador', desc:'Partida online', aiCount, teamPlan:'ffa' };
@@ -2552,6 +2558,19 @@ const MP_GOALS = {
   classic:  { name:'Clásico',             icon:'👑', turns:20, short:'Toma el castillo central, elimina a todos o domina el mapa.' },
 };
 function mpGoal(){ return (S && S.mp && S.mp.goal) || 'classic'; }
+const LOCAL_GOALS = ['castles','dominion','conquest'];
+const ONLINE_GOALS = ['castles','dominion','conquest','classic']; // los de Mismo teléfono + Clásico (el modo online de siempre)
+// Selector de modo de juego: mismo componente en "Mismo teléfono" y en la sala online.
+function goalPickerEl(keys, current, onPick, locked){
+  const goals = el(`<div class="goal-grid ${keys.length===4?'g4':''}"></div>`);
+  keys.forEach(k=>{
+    const g=MP_GOALS[k];
+    const c=el(`<button class="goal-card ${current===k?'chosen':''}" ${locked?'disabled':''}><span class="goal-ico">${g.icon}</span><b>${g.name}</b><small>${g.short}</small></button>`);
+    c.addEventListener('click', ()=>onPick(k));
+    goals.appendChild(c);
+  });
+  return goals;
+}
 function mpCastleSweep(){
   if(mpGoal()!=='castles') return;
   S.territories.forEach(t=>{
@@ -2754,6 +2773,12 @@ function mpApplyState(payload){
     else if(!pendingModal){ MP.seenEventKey=key; pendingModal='event'; }
     else S.pendingEvent=null;
   }
+  // Online: al entrar o reconectar no se repiten las animaciones de Odilio que ya pasaron.
+  if(!LOCAL.active && !TUT.active && MP.animRoom!==payload.room.code){
+    MP.animRoom = payload.room.code;
+    MP.seenOdilio = Math.max(0, ...((S.mp.odilio||[]).map(e=>e.id)));
+    MP.seenStrike = Math.max(0, ...((S.mp.strikes||[]).map(e=>e.id)));
+  }
   queueOdilioFrom(S); queueStrikesFrom(S);
   const turnKey = `${S.turn}:${S.mp.current}`;
   if(MP.lastTurnKey!==turnKey){ MP.lastTurnKey=turnKey; if(mpIsMyTurn()) notify('👑','¡Es tu turno!','good'); }
@@ -2802,6 +2827,27 @@ const CREST_METALS = ['#e6c765','#ece6d6'];
 let crestSeq = 0;
 function pickOf(a){ return a[Math.floor(Math.random()*a.length)]; }
 function randomCrest(){ return { shape:pickOf(CREST_SHAPES), pattern:pickOf(CREST_PATTERNS), emblem:pickOf(CREST_EMBLEMS), metal:pickOf(CREST_METALS) }; }
+const CREST_PARTS = { shape:CREST_SHAPES, pattern:CREST_PATTERNS, emblem:CREST_EMBLEMS, metal:CREST_METALS };
+// El servidor la usa para aceptar solo escudos hechos con las piezas oficiales.
+function cleanCrest(c){
+  if(!c || typeof c!=='object') return null;
+  const out={};
+  for(const k of Object.keys(CREST_PARTS)){ if(!CREST_PARTS[k].includes(c[k])) return null; out[k]=c[k]; }
+  return out;
+}
+// Color y escudo: mismos controles en "Mismo teléfono" y en la sala online.
+function identityToolsHTML(crest){
+  return `<div class="swatches" aria-label="Color"></div>
+        <div class="crest-tools"><button data-k="shape">🛡️ Forma</button><button data-k="pattern">🎨 Diseño</button><button data-k="emblem">${crest.emblem} Emblema</button><button data-k="metal">✨ Metal</button></div>`;
+}
+function wireIdentityTools(root, pl, takenColors, onChange){
+  const rb = root.querySelector('.crest-btn'); if(rb) rb.addEventListener('click', ()=>onChange({crest:randomCrest()}));
+  const sw = root.querySelector('.swatches');
+  IDENTITY_COLORS.forEach(c=>{ const b=el(`<button class="swatch ${pl.color===c?'on':''}" style="background:${c}" ${takenColors.has(c)?'disabled':''} aria-label="Color"></button>`); b.addEventListener('click', ()=>onChange({color:c})); sw.appendChild(b); });
+  root.querySelectorAll('.crest-tools button').forEach(b=>b.addEventListener('click', ()=>{
+    const k=b.dataset.k, list=CREST_PARTS[k];
+    onChange({crest:Object.assign({}, pl.crest, {[k]: list[(list.indexOf(pl.crest[k])+1)%list.length]})}); }));
+}
 function shieldPath(shape){
   return ({ heater:'M4 3H36V20C36 32 28 40 20 44C12 40 4 32 4 20Z', kite:'M20 2L36 8V20C36 30 28 40 20 45C12 40 4 30 4 20V8Z',
     round:'M4 3H36V22A16 21 0 0 1 4 22Z', square:'M4 3H36V33L20 44L4 33Z' })[shape] || 'M4 3H36V20C36 32 28 40 20 44C12 40 4 32 4 20Z';
@@ -2843,12 +2889,14 @@ function sfx(kind){
 // ================= Minijuegos (interfaz táctil) =================
 const MG = { active:false };
 function mgAvailable(){
-  if(!(S && S.mp && S.mpLocal && LOCAL.active && mpIsMyTurn() && !S.over)) return false;
+  if(!(S && S.mp && S.mpLocal && MP.online && mpIsMyTurn() && !S.over)) return false;
   const seat = S.mp.seats[MP.me]; return !!seat && seat.minigameTurn!==S.turn;
 }
 function startMinigame(key){
   const mg = MINIGAMES[key]; if(!mg || MG.active) return;
   MG.active = true;
+  // Online: el servidor anota cuándo empezó para validar el premio al terminar.
+  if(MP.socket && !MP.socket.local) MP.socket.emit('mgStart', {key}, ()=>{});
   const DUR = window.__MK_MG_MS || 10000;
   const ov = document.createElement('div'); ov.className='mg-overlay';
   ov.innerHTML = `<div class="mg-top"><span class="mg-title">${mg.icon} ${mg.name}</span><span class="mg-score">0</span><span class="mg-time">${(DUR/1000).toFixed(1)}s</span></div>
@@ -3009,7 +3057,7 @@ function playOdilio(ev, done){
     <div class="od-god">${odilioGodSVG()}</div>
     <div class="od-text">
       <div class="od-kicker">${ev.crest!==undefined?shieldSVG(ev.crest, ev.color, 22):''} ${ev.name} · Nivel ${ev.level}</div>
-      <h1>¡HAS ALCANZADO<br>EL GRAN ODILIO!</h1>
+      <h1>${(LOCAL.active || TUT.active || ev.hid===MP.me) ? '¡HAS ALCANZADO' : `¡${ev.name} HA ALCANZADO`}<br>EL GRAN ODILIO!</h1>
       <div class="od-line">Odilio, el dios chihuahua, desciende: “${ODILIO[cls].line}”</div>
     </div>
     <div class="od-power"><div class="od-kind">ATAQUE DEL GRAN ODILIO</div><div class="od-big">ATACA DOS TERRITORIOS</div><div class="od-icon">${ev.icon}</div><b>${ev.power}</b><p>${ODILIO[cls].style}<br>${ev.desc}</p></div>
@@ -3160,14 +3208,7 @@ function renderLocalTab(){
   const st = LOCAL.setup; ensureSetupIdentity();
   box.appendChild(el(`<p class="hint">Jueguen por turnos en este mismo teléfono. Cada quien elige nombre, color, escudo y personaje. Al terminar su turno, se lo pasan al siguiente.</p>`));
   box.appendChild(el(`<h3 style="margin:6px 0;">Modo de juego</h3>`));
-  const goals = el(`<div class="goal-grid"></div>`);
-  ['castles','dominion','conquest'].forEach(k=>{
-    const g=MP_GOALS[k];
-    const c=el(`<button class="goal-card ${ (st.goal||'castles')===k?'chosen':''}"><span class="goal-ico">${g.icon}</span><b>${g.name}</b><small>${g.short}</small></button>`);
-    c.addEventListener('click', ()=>{ st.goal=k; render(); });
-    goals.appendChild(c);
-  });
-  box.appendChild(goals);
+  box.appendChild(goalPickerEl(LOCAL_GOALS, st.goal||'castles', k=>{ st.goal=k; render(); }, false));
   box.appendChild(el(`<h3 style="margin:14px 0 6px;">Jugadores</h3>`));
   const list = el(`<div class="local-list"></div>`);
   st.players.forEach((pl,i)=>{
@@ -3176,19 +3217,13 @@ function renderLocalTab(){
         <div class="local-top"><button class="crest-btn" aria-label="Escudo al azar">${shieldSVG(pl.crest, pl.color, 40)}<small>🎲</small></button>
           <input class="mp-input local-name" maxlength="16" placeholder="Jugador ${i+1}" value="${(pl.name||'').replace(/"/g,'&quot;')}"/>
           ${st.players.length>2?'<button class="mp-kick" aria-label="Quitar jugador">✕</button>':''}</div>
-        <div class="swatches" aria-label="Color"></div>
-        <div class="crest-tools"><button data-k="shape">🛡️ Forma</button><button data-k="pattern">🎨 Diseño</button><button data-k="emblem">${pl.crest.emblem} Emblema</button><button data-k="metal">✨ Metal</button></div>
+        ${identityToolsHTML(pl.crest)}
         <div class="mp-classes local-cls"></div>
       </div>`);
     row.querySelector('.local-name').addEventListener('input', e=>{ pl.name = e.target.value; });
     const rm = row.querySelector('.mp-kick'); if(rm) rm.addEventListener('click', ()=>{ st.players.splice(i,1); render(); });
-    row.querySelector('.crest-btn').addEventListener('click', ()=>{ pl.crest = randomCrest(); render(); });
-    const sw = row.querySelector('.swatches');
     const taken = new Set(st.players.filter(o=>o!==pl).map(o=>o.color));
-    IDENTITY_COLORS.forEach(c=>{ const b=el(`<button class="swatch ${pl.color===c?'on':''}" style="background:${c}" ${taken.has(c)?'disabled':''} aria-label="Color"></button>`); b.addEventListener('click', ()=>{ pl.color=c; render(); }); sw.appendChild(b); });
-    row.querySelectorAll('.crest-tools button').forEach(b=>b.addEventListener('click', ()=>{
-      const k=b.dataset.k, list = k==='shape'?CREST_SHAPES:(k==='pattern'?CREST_PATTERNS:(k==='emblem'?CREST_EMBLEMS:CREST_METALS));
-      pl.crest[k] = list[(list.indexOf(pl.crest[k])+1)%list.length]; render(); }));
+    wireIdentityTools(row, pl, taken, ch=>{ if(ch.color) pl.color=ch.color; if(ch.crest) pl.crest=ch.crest; render(); });
     const cls = row.querySelector('.local-cls');
     Object.entries(CLASSES).forEach(([k,c])=>{
       const b=el(`<button class="${pl.cls===k?'tab-active':''}"><span style="font-size:20px">${c.emoji}</span><span>${c.label}</span></button>`);
@@ -4165,6 +4200,7 @@ function renderMpTab(){
       <h3 style="margin:6px 0;">Jugadores (${humans}/5)</h3>
       <div class="mp-plist"></div>
       <h3 style="margin:14px 0 6px;">Tu personaje</h3>
+      <div class="mp-identity"></div>
       <div class="mp-classes"></div>
       <div class="mp-settings"></div>
       <div class="btnrow" style="justify-content:center;margin-top:14px;flex-direction:column;align-items:stretch;"></div>
@@ -4176,11 +4212,18 @@ function renderMpTab(){
   });
   const list = lobby.querySelector('.mp-plist');
   room.players.forEach(pl=>{
-    const row = el(`<div class="mp-prow"><span class="ctx-dot" style="background:${pl.color}"></span><b>${pl.name}</b>${pl.host?' 👑':''}${pl.id===MP.myId?' <small>(tú)</small>':''}<span class="mp-pcls">${(CLASSES[pl.cls]||CLASSES.guerrero).emoji} ${(CLASSES[pl.cls]||CLASSES.guerrero).label}</span><span class="mp-conn">${pl.connected?'🟢':'⚠️'}</span></div>`);
+    const row = el(`<div class="mp-prow">${pl.crest?shieldSVG(pl.crest, pl.color, 20):`<span class="ctx-dot" style="background:${pl.color}"></span>`}<b>${pl.name}</b>${pl.host?' 👑':''}${pl.id===MP.myId?' <small>(tú)</small>':''}<span class="mp-pcls">${(CLASSES[pl.cls]||CLASSES.guerrero).emoji} ${(CLASSES[pl.cls]||CLASSES.guerrero).label}</span><span class="mp-conn">${pl.connected?'🟢':'⚠️'}</span></div>`);
     if(host && pl.id!==MP.myId){ const k=el(`<button class="mp-kick" aria-label="Expulsar a ${pl.name}">✕</button>`); k.addEventListener('click', ()=>{ if(confirm(`¿Expulsar a ${pl.name}?`)) mpEmit('kick',{id:pl.id}); }); row.appendChild(k); }
     list.appendChild(row);
   });
   const me = room.players.find(p=>p.id===MP.myId)||{};
+  if(me.id && me.crest){
+    const idBox = lobby.querySelector('.mp-identity');
+    idBox.appendChild(el(`<div class="local-top"><button class="crest-btn" aria-label="Escudo al azar">${shieldSVG(me.crest, me.color, 40)}<small>🎲</small></button><span class="hint">Tu color y tu escudo</span></div>`));
+    idBox.insertAdjacentHTML('beforeend', identityToolsHTML(me.crest));
+    const taken = new Set(room.players.filter(o=>o.id!==me.id).map(o=>o.color));
+    wireIdentityTools(idBox, me, taken, async ch=>{ const r=await mpEmit('setIdentity', ch); if(!r.ok){ notify('⚠️', r.error||'No se pudo cambiar.', 'bad'); render(); } });
+  }
   const cls = lobby.querySelector('.mp-classes');
   Object.entries(CLASSES).forEach(([k,c])=>{
     const b=el(`<button class="${me.cls===k?'tab-active':''}"><span style="font-size:22px">${c.emoji}</span><span>${c.label}</span></button>`);
@@ -4189,6 +4232,8 @@ function renderMpTab(){
   });
   const st = lobby.querySelector('.mp-settings');
   const maxAi = Math.max(0, 5-humans);
+  st.appendChild(el(`<h3 style="margin:14px 0 6px;">Modo de juego ${host?'':'<small class="hint">(lo elige el anfitrión)</small>'}</h3>`));
+  st.appendChild(goalPickerEl(ONLINE_GOALS, room.settings.goal||'castles', k=>mpEmit('settings',{goal:k}), !host));
   st.appendChild(el(`<h3 style="margin:14px 0 6px;">Reinos de la IA ${host?'':'<small class="hint">(los elige el anfitrión)</small>'}</h3>`));
   const aiRow = el(`<div class="mp-seg"></div>`);
   for(let n=0;n<=maxAi;n++){ const b=el(`<button class="${room.settings.ai===n?'tab-active':''}" ${host?'':'disabled'}>${n}</button>`); b.addEventListener('click', ()=>mpEmit('settings',{ai:n, diff:room.settings.diff})); aiRow.appendChild(b); }
@@ -5127,7 +5172,9 @@ if(!window.__MK_SERVER){
 }
 if(window.__MK_SERVER){ window.__MKAPI = { mpStartGame, mpAct, mpEndTurn, mpKick, mpSnapshot, mpRestore, get S(){ return S; },
   drainOutbox(){ if(!S || !S.mp) return []; const o=S.mp.outbox; S.mp.outbox=[]; return o; },
-  currentHid(){ return S && S.mp ? S.mp.order[S.mp.current] : null; } }; }
+  currentHid(){ return S && S.mp ? S.mp.order[S.mp.current] : null; },
+  // Catálogos oficiales del juego para que el servidor valide sin duplicar listas.
+  goals: ONLINE_GOALS.slice(), colors: IDENTITY_COLORS.slice(), minigames: Object.keys(MINIGAMES), cleanCrest, randomCrest }; }
 if(window.__MK_DEBUG){ window.__MK = { get S(){ return S; }, render, runAllAiTurns, checkGameEnd, finishByCount, endPlayerTurn, byId, ownerTerritories, neighbors, get P(){ return P; }, setChapter(i){ storyChapter=i; }, get LOCAL(){ return LOCAL; }, get MP(){ return MP; }, get TUT(){ return TUT; }, TUTORIAL_STEPS, tutStart, tutExit, attackForce, defenseForce, shieldCost, recruitCost, cannonCost, unitsOf, cannonTargets, get pendingModal(){ return pendingModal; } }; }
 })();
 </script>
