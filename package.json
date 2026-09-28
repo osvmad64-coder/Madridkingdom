@@ -1,0 +1,18 @@
+{
+  "name": "madrid-kingdom-online",
+  "version": "1.0.0",
+  "description": "Madrid Kingdom multijugador online: servidor autoritativo con salas, lobby, turnos y reconexión.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "jsdom": "^24.1.0",
+    "socket.io": "^4.7.5",
+    "web-push": "^3.6.7"
+  }
+}
