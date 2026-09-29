@@ -82,6 +82,8 @@
   .map-card{padding:8px;}
   #mapSvg{width:100%; height:auto; display:block; border-radius:4px;}
   #mapSvg.tall{ margin:0 auto; }
+  .sp-info{ border-left:3px solid #e6c765; padding-left:8px; }
+  .sp-info small{ opacity:.85; }
   .terr{cursor:pointer;}
 
   .menu-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:14px 0 16px; }
@@ -4165,7 +4167,7 @@ function renderHud(){
   `);
   hud.querySelector('.hud-profile').addEventListener('click', ()=>{ pendingModal='profile'; render(); });
   const odb = hud.querySelector('.odilio-badge'); if(odb) odb.addEventListener('click', enterOdilioMode);
-  hud.querySelector('.hud-gold').addEventListener('click', ()=>{ const b=incomeBreakdown(); notify('💰', `Ingreso por turno: +${b.total} = ${b.lands} tierras × ${b.perLand} (${b.landGold}) + ${b.base} base${b.passive?` + ${b.passive} de terrenos`:''}${b.tree?` + ${b.tree} de habilidades`:''}${b.buff?' · con Fortuna activa':''}.`, 'info', 6500); render(); });
+  hud.querySelector('.hud-gold').addEventListener('click', ()=>{ const b=incomeBreakdown(); notify('💰', `Ingreso por turno: +${b.total} = ${b.lands} tierras × ${b.perLand} (${b.landGold}) + ${b.base} base${b.passive?` + ${b.passive} de terrenos`:''}${b.tree?` + ${b.tree} de habilidades`:''}${b.special?` + ${b.special} de minas`:''}${b.buff?' · con Fortuna activa':''}.`, 'info', 6500); render(); });
   return hud;
 }
 
@@ -4215,7 +4217,7 @@ function renderOdilioPanel(){
 }
 function militaryStatsHTML(t, fogged){
   if(fogged) return `<div class="mil-stats"><span>⚔️ Gladiadores <b>?</b></span><span>🛡️ Escuderos <b>?</b></span>${t.cannon?'<span>💣 Cañón <b>1</b></span>':''}</div>`;
-  const def = defenseForce(t)*defenseMult() + defenseFlat(t.owner) + (t.biome.passiveType==='defensa'?t.biome.passiveValue:0) + castleBonus(t);
+  const def = (defenseForce(t)*defenseMult() + defenseFlat(t.owner) + (t.biome.passiveType==='defensa'?t.biome.passiveValue:0) + castleBonus(t)) * fortressMult(t);
   return `<div class="mil-stats"><span>⚔️ Gladiadores <b>${t.troops}</b></span><span>🛡️ Escuderos <b>${shieldsOf(t)}</b></span><span>💣 Cañón <b>${t.cannon?'1':'—'}</b></span></div>
     <div class="mil-power"><span>Ataque <b>${attackForce(t).toFixed(1)}</b></span><span>Defensa <b>${def.toFixed(1)}</b></span></div>`;
 }
@@ -4224,8 +4226,8 @@ function renderMilitaryBlock(own){
     <div class="mil-block">
       <div class="ctx-label">MILITAR</div>
       ${militaryStatsHTML(own,false)}
-      <div class="mil-row"><span>🛡️ Escuderos <small>${shieldCost()} oro · defienden ×${SHIELD_DEF} · atacan ×${SHIELD_ATK} · máx. ${SHIELD_CAP}</small></span>
-        <div class="mil-step"><button class="mil-minus" aria-label="Licenciar escudero" ${shieldsOf(own)<1?'disabled':''}>−</button><b>${shieldsOf(own)}</b><button class="mil-plus" aria-label="Reclutar escudero" ${(S.player.gold<shieldCost()||shieldsOf(own)>=SHIELD_CAP)?'disabled':''}>+</button></div></div>
+      <div class="mil-row"><span>🛡️ Escuderos <small>${marketPrice(shieldCost())} oro · defienden ×${SHIELD_DEF} · atacan ×${SHIELD_ATK} · máx. ${SHIELD_CAP}</small></span>
+        <div class="mil-step"><button class="mil-minus" aria-label="Licenciar escudero" ${shieldsOf(own)<1?'disabled':''}>−</button><b>${shieldsOf(own)}</b><button class="mil-plus" aria-label="Reclutar escudero" ${(S.player.gold<marketPrice(shieldCost())||shieldsOf(own)>=SHIELD_CAP)?'disabled':''}>+</button></div></div>
       <div class="mil-cannon"></div>
     </div>`);
   box.querySelector('.mil-minus').addEventListener('click', ()=>sellShields(own.id, 1));
@@ -4290,6 +4292,12 @@ function renderContextPanel(){
   head.querySelector('.ctx-close').addEventListener('click', ()=>{ selectedFrom=null; inspectId=null; render(); });
   panel.appendChild(head);
   const landGold = t.owner==='player' ? (landIncomeAt(Math.max(0, ownerTerritories('player').length-1)) + (t.biome.passiveType==='oro'?t.biome.passiveValue:0)) : 0;
+  const sp = specialOf(t);
+  if(sp){
+    const holder = t.owner==='neutral' ? 'Sin dueño: nadie recibe el beneficio' : (t.owner==='player' ? '✅ Es tuyo: recibes el beneficio' : `Lo aprovecha ${nameOf(t.owner)}`);
+    const cd = t.special==='ruinas' ? (ruinsTurnsLeft(t)>0 ? ` · ⏳ Agotadas: faltan ${ruinsTurnsLeft(t)} ronda(s)` : ' · ✨ Botín disponible') : '';
+    panel.appendChild(el(`<div class="ctx-info sp-info"><b>${sp.icon} ${sp.name}</b> · ${sp.desc}<br><small>${holder}${cd}</small></div>`));
+  }
   panel.appendChild(el(`<div class="ctx-info">${t.castle?`🏰 <b>Castillo de ${nameOf(t.owner)}</b> (+${castleBonus(t)} defensa · si cae, ese reino queda fuera) · `:''}🏞️ ${t.biome.passiveLabel}${t.isBoss?' · Jefe final':''} · Poder ${fogged?'?':territoryPower(t).toFixed(1)}${landGold?` · 💰 aporta +${landGold} oro/turno`:''}</div>`));
 
   if(own){
@@ -4312,7 +4320,7 @@ function renderContextPanel(){
     const rate = (S.player.cls==='picaro' ? 4 : 3) + (S.player.bonusTradeRate||0);
     const grid = el(`<div class="ctx-grid"></div>`);
     const mk = (label, sub, disabled, fn, cls)=>{ const b=el(`<button class="${cls||''}" ${disabled?'disabled':''}><span>${label}</span><small>${sub}</small></button>`); b.addEventListener('click', fn); grid.appendChild(b); };
-    [1,3].forEach(n=> mk(`🪖 +${n}`, `${n*perTroop} oro`, S.player.gold<n*perTroop || own.troops>=MAX_TROOPS, ()=>recruit(own.id, n)));
+    [1,3].forEach(n=> mk(`🪖 +${n}`, `${marketPrice(n*perTroop)} oro`, S.player.gold<marketPrice(n*perTroop) || own.troops>=MAX_TROOPS, ()=>recruit(own.id, n)));
     [1,3].forEach(n=> mk(`💰 Vender ${n}`, `+${n*rate} oro`, own.troops-n<1, ()=>tradeSell(own.id, n)));
     if(own.tier<4){ const nt=own.tier+1; const cost=TIERS[nt].upgradeCost + own.troops*3; mk(`🎖️ Entrenar`, `${TIERS[nt].icon} ${cost} oro`, S.player.gold<cost, ()=>trainTerritory(own.id)); }
     else mk(`🎖️ Entrenar`, `Calidad máx.`, true, ()=>{});
@@ -5015,6 +5023,7 @@ function renderMapCard(){
           ${t.cannon ? `<circle cx="-15" cy="9" r="7.5" fill="#1c140d" stroke="#e6c765" stroke-width="1"/><text x="-15" y="12" text-anchor="middle" font-size="8.5" style="pointer-events:none">💣</text>` : ''}
           <circle cx="12" cy="-10" r="7.5" fill="#1c140d" stroke="#c9a63c" stroke-width="1"/>
           <text x="12" y="-7" text-anchor="middle" font-size="8.5" style="pointer-events:none">${TIERS[t.tier].icon}</text>
+          ${t.special ? `<g class="sp-badge" opacity="${t.special==='ruinas' && ruinsTurnsLeft(t)>0 ? '.5' : '1'}"><circle cx="15" cy="9" r="8.5" fill="#2a1d10" stroke="#f3d77a" stroke-width="1.4"/><text x="15" y="12.3" text-anchor="middle" font-size="9.5" style="pointer-events:none">${SPECIALS[t.special].icon}</text></g>` : ''}
         </g></g>
         ${isSelectable? `<g transform="translate(${t.x+26} ${t.y-20})"><g class="atk-mark"><g class="bob"><circle r="9" fill="#1c140d" fill-opacity=".85" stroke="#ff9d6e" stroke-width="1.3"/><path d="M-5 -5L5 5M5 -5L-5 5" stroke="#f3e6c0" stroke-width="1.8" stroke-linecap="round"/><path d="M-6.2 2L-2 6.2M6.2 2L2 6.2" stroke="#c9a63c" stroke-width="1.6" stroke-linecap="round"/></g></g></g>` : ''}
         <title>${t.name} — ${nameOf(t.owner)} — ${b.passiveLabel}</title>
@@ -5044,6 +5053,7 @@ function renderMapCard(){
       ${S.factions.map(f=>{ const tl=teamLabel(f); const cr=f.crest?factionCrestHTML(f.id,14):''; return `<span>${cr||`<span class="dot" style="background:${f.color}"></span>`}${f.isPlayer?'Tu reino: ':''}${f.name}${tl?` (${tl})`:''}</span>`; }).join('')}
       <span><span class="dot" style="background:${NEUTRAL_COLOR}"></span>Neutral</span>
       ${S.mp?'<span>🔵 n = escuderos · 💣 = cañón</span>':''}
+      ${S.territories.some(t=>t.special)?`<span>Especiales: ${Object.values(SPECIALS).map(v=>`${v.icon} ${v.name}`).join(' · ')}</span>`:''}
       <span>🛡️ Milicia · 🏹 Arqueros · 🐴 Caballeros · 🐉 Bestias · ${S.mp && mpGoal()==='castles'?'🏰 Castillo':(S.mp && mpGoal()!=='classic'?'':'👑 Jefe final')}</span>
       <span class="daycycle-pill">${stage.icon} ${stage.name}</span>
     </div>
@@ -5294,7 +5304,7 @@ function renderModal(){
       const t = byId(Number(sel.value));
       const perTroop = recruitCost(t);
       [1,2,3].forEach(n=>{
-        const cost=n*perTroop;
+        const cost=marketPrice(n*perTroop);
         const b = el(`<button ${S.player.gold<cost?'disabled':''}>+${n} (${cost} oro)</button>`);
         b.addEventListener('click', ()=>recruit(t.id, n));
         row.appendChild(b);
