@@ -63,6 +63,13 @@ En las partidas nuevas (online y Mismo teléfono), entre ~25% y 35% del mapa son
 
 Salen en la zona disputada y en las orillas, lejos de las tierras iniciales, sin juntar Mina, Fortaleza y Mercado, y con un valor parejo para cada reino. El servidor decide dónde están y aplica todos los efectos.
 
+## Rendimiento: Calidad alta / Modo Lite
+En **⚙️ Rendimiento** (menú principal o ☰ Más durante la partida) cada jugador elige cómo se ve el juego en su teléfono:
+- **✨ Calidad alta** (predeterminado): todos los efectos, igual que siempre.
+- **⚡ Modo Lite:** sin textura de grano, sin relieve ni sombras internas en el mapa, sin animaciones continuas, sin desenfoques, la mitad de adornos y menos partículas en Odilio. El mapa pesa ~27% menos y cada actualización de pantalla es ~25–45% más rápida en teléfonos lentos.
+
+Solo cambia el dibujo en ese teléfono: la partida, las reglas y los demás jugadores no se ven afectados, y se puede cambiar en plena partida. Si el juego detecta un equipo limitado la primera vez, sugiere el Modo Lite (nunca en iPhone y nunca lo activa solo).
+
 ## Cómo funcionan las partidas largas
 - **Tiempo por turno:** el anfitrión elige en la sala qué pasa si alguien no está en su turno: **saltar a los 2 min** (para jugar al mismo tiempo), **saltar a las 12 h** o **esperar siempre**.
 - **Guardado:** las partidas se guardan en el disco y sobreviven reinicios y actualizaciones.
