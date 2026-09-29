@@ -53,6 +53,16 @@ Cada partida de 🏰 Asedio de castillos (online y Mismo teléfono) sale en uno 
 - Los castillos salen en lugares distintos cada vez, pero siempre justos: con 2 reinos se necesitan al menos 6 ataques para llegar a un castillo rival (imposible en el primer turno), todos quedan a la misma distancia y hay al menos 2 caminos entre castillos.
 - En online el servidor crea el mapa una sola vez: todos ven exactamente lo mismo y al reconectar no cambia.
 
+## Territorios especiales
+En las partidas nuevas (online y Mismo teléfono), entre ~25% y 35% del mapa son territorios especiales. Su ícono aparece junto al nombre y, al tocarlos, el panel explica su beneficio:
+- 🪙 **Mina de Oro:** +8 de oro al inicio del turno de su dueño.
+- 🏰 **Fortaleza:** +15% de defensa mientras tenga dueño.
+- 🛒 **Mercado:** 15% menos al reclutar gladiadores y escuderos (máx. 25% con varios).
+- 🔮 **Santuario:** +2 de maná al inicio del turno.
+- 🏛️ **Ruinas:** 25–45 de oro al conquistarlas; luego se agotan 3 rondas (⏳).
+
+Salen en la zona disputada y en las orillas, lejos de las tierras iniciales, sin juntar Mina, Fortaleza y Mercado, y con un valor parejo para cada reino. El servidor decide dónde están y aplica todos los efectos.
+
 ## Cómo funcionan las partidas largas
 - **Tiempo por turno:** el anfitrión elige en la sala qué pasa si alguien no está en su turno: **saltar a los 2 min** (para jugar al mismo tiempo), **saltar a las 12 h** o **esperar siempre**.
 - **Guardado:** las partidas se guardan en el disco y sobreviven reinicios y actualizaciones.
