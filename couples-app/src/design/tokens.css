@@ -1,0 +1,160 @@
+/*
+ * DESIGN TOKENS — único lugar para cambiar la identidad visual.
+ * Todas las pantallas y componentes usan estas variables.
+ * Ej: "menos rosa y más elegante" → cambia --accent*, --blush* y --surface-tint.
+ */
+:root {
+  color-scheme: light;
+
+  /* ── Paleta base ── */
+  --cream: #fff9f4;
+  --cream-2: #fdf1e8;
+  --paper: #ffffff;
+  --blush-50: #fff4f6;
+  --blush-100: #ffe6ec;
+  --blush-200: #ffcfdb;
+  --blush-300: #ffb0c3;
+  --rose-500: #ec4f7c;   /* rosa fuerte = acción */
+  --rose-600: #d63a68;
+  --rose-700: #b02a53;
+  --coral-100: #ffe5dd;
+  --coral-400: #ff8f7d;
+  --coral-500: #fb6f5c;
+  --butter-100: #fff4d1;
+  --butter-300: #ffe08a;
+  --butter-500: #f5bd3c;
+  --gold-400: #d6ae62;
+  --gold-600: #a9823a;
+  --lilac-100: #efe8ff;
+  --lilac-400: #a98bf0;
+  --mint-100: #ddf4ea;
+  --mint-500: #3fae84;
+  --sky-100: #e0f0ff;
+  --peach-100: #ffe9d6;
+
+  /* ── Texto (ciruela cálido en vez de negro) ── */
+  --ink: #3b2431;
+  --ink-2: #7b6270;
+  --ink-3: #b3a0aa;
+  --ink-inverse: #ffffff;
+
+  /* ── Roles semánticos ── */
+  --bg: var(--cream);
+  --bg-grad: radial-gradient(120% 60% at 100% 0%, #ffe9ef 0%, transparent 55%),
+    radial-gradient(90% 50% at 0% 10%, #fff3dc 0%, transparent 50%), var(--cream);
+  --surface: var(--paper);
+  --surface-2: var(--blush-50);
+  --surface-tint: #fff7f2;
+  --line: #f3e3e6;
+  --line-strong: #ead0d7;
+
+  --accent: var(--rose-500);
+  --accent-strong: var(--rose-600);
+  --accent-soft: var(--blush-100);
+  --accent-ink: var(--rose-700);
+  --accent-grad: linear-gradient(135deg, #ff7a9c 0%, #ec4f7c 55%, #e0457a 100%);
+
+  --success: var(--mint-500);
+  --success-soft: var(--mint-100);
+  --warning: var(--butter-500);
+  --streak: #ff7a45;
+  --streak-soft: #ffe8dc;
+  --points: var(--gold-600);
+  --points-soft: var(--butter-100);
+
+  /* ── Tonos para tarjetas pastel (categorías, etc.) ── */
+  --tone-rose: var(--blush-100);
+  --tone-butter: var(--butter-100);
+  --tone-lilac: var(--lilac-100);
+  --tone-mint: var(--mint-100);
+  --tone-peach: var(--peach-100);
+  --tone-sky: var(--sky-100);
+  --tone-coral: var(--coral-100);
+  --tone-cream: var(--cream-2);
+
+  /* ── Tipografía ── */
+  --font-display: 'Fraunces Variable', 'Iowan Old Style', Georgia, serif;
+  --font-body: 'Plus Jakarta Sans Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --fs-2xs: 0.6875rem; /* 11 */
+  --fs-xs: 0.75rem;    /* 12 */
+  --fs-sm: 0.875rem;   /* 14 */
+  --fs-md: 1rem;       /* 16 */
+  --fs-lg: 1.125rem;   /* 18 */
+  --fs-xl: 1.375rem;   /* 22 */
+  --fs-2xl: 1.75rem;   /* 28 */
+  --fs-3xl: 2.25rem;   /* 36 */
+  --fs-4xl: 2.875rem;  /* 46 */
+  --fw-regular: 450;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 800;
+  --lh-tight: 1.1;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
+
+  /* ── Espaciado (base 4) ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --gutter: 20px;
+
+  /* ── Radios ── */
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 24px;
+  --r-xl: 30px;
+  --r-pill: 999px;
+
+  /* ── Bordes y sombras (muy suaves, tintadas de rosa) ── */
+  --border: 1px solid var(--line);
+  --shadow-xs: 0 1px 2px rgba(120, 40, 70, 0.05);
+  --shadow-sm: 0 2px 10px -2px rgba(150, 50, 90, 0.08), 0 1px 2px rgba(150, 50, 90, 0.04);
+  --shadow-md: 0 10px 30px -12px rgba(170, 60, 100, 0.18), 0 2px 6px rgba(150, 50, 90, 0.05);
+  --shadow-lg: 0 24px 60px -20px rgba(170, 60, 100, 0.28);
+  --shadow-accent: 0 12px 28px -10px rgba(236, 79, 124, 0.55);
+  --ring: 0 0 0 3px rgba(236, 79, 124, 0.22);
+
+  /* ── Movimiento ── */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-fast: 140ms;
+  --dur-med: 260ms;
+  --dur-slow: 480ms;
+
+  /* ── Layout ── */
+  --tabbar-h: 64px;
+  --touch: 48px;
+  --app-max: 440px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/*
+ * Personalidad de secciones: solo se redefinen unos tokens.
+ * Date Night es más colorida y juguetona.
+ */
+[data-section='dates'] {
+  --bg-grad: radial-gradient(110% 55% at 100% 0%, #efe6ff 0%, transparent 55%),
+    radial-gradient(90% 50% at 0% 8%, #fff0cc 0%, transparent 50%),
+    radial-gradient(80% 40% at 50% 100%, #ffe3dc 0%, transparent 60%), var(--cream);
+  --accent: var(--coral-500);
+  --accent-strong: #ec5a47;
+  --accent-soft: var(--coral-100);
+  --accent-ink: #c2412f;
+  --accent-grad: linear-gradient(135deg, #ffb057 0%, #ff7a6b 45%, #ec4f7c 100%);
+  --shadow-accent: 0 12px 28px -10px rgba(251, 111, 92, 0.55);
+  --ring: 0 0 0 3px rgba(251, 111, 92, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur-med: 1ms;
+    --dur-slow: 1ms;
+  }
+}

@@ -1,0 +1,170 @@
+/* Base: reset, tipografía y layout de la app. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  font-weight: var(--fw-regular);
+  line-height: var(--lh-body);
+  color: var(--ink);
+  background: #f6ece9;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior: none;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: 0;
+  background: none;
+  padding: 0;
+  touch-action: manipulation;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* ── Tipografía ── */
+.display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  letter-spacing: -0.02em;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+}
+.display em {
+  font-style: italic;
+  color: var(--accent);
+}
+.title {
+  font-family: var(--font-display);
+  font-weight: 560;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-snug);
+  letter-spacing: -0.01em;
+  font-variation-settings: 'SOFT' 100;
+}
+.eyebrow {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.muted {
+  color: var(--ink-2);
+}
+.small {
+  font-size: var(--fs-sm);
+}
+.tiny {
+  font-size: var(--fs-xs);
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Layout de la app ── */
+.app-frame {
+  position: relative;
+  height: 100dvh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-grad);
+  isolation: isolate;
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+/* En desktop: se muestra como teléfono centrado. */
+@media (min-width: 600px) {
+  body {
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(60% 60% at 20% 20%, #ffe3ea, transparent 60%),
+      radial-gradient(60% 60% at 80% 80%, #fff0d6, transparent 60%), #f7ece8;
+  }
+  #root {
+    display: grid;
+    place-items: center;
+    width: 100%;
+  }
+  .app-frame {
+    width: var(--app-max);
+    height: min(900px, calc(100dvh - 48px));
+    border-radius: 44px;
+    box-shadow: 0 40px 90px -30px rgba(120, 40, 70, 0.35), 0 0 0 10px #fff, 0 0 0 11px var(--line-strong);
+  }
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: calc(var(--safe-top) + var(--sp-5)) var(--gutter)
+    calc(var(--tabbar-h) + var(--safe-bottom) + var(--sp-8));
+  scrollbar-width: none;
+}
+.screen::-webkit-scrollbar {
+  display: none;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap, var(--sp-4));
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--gap, var(--sp-3));
+}
+.between {
+  justify-content: space-between;
+}
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+.center {
+  text-align: center;
+}

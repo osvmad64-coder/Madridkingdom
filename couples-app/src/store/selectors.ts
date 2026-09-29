@@ -1,0 +1,82 @@
+import { ACHIEVEMENTS } from '../content/achievements';
+import { BASE_CHALLENGES } from '../content/challenges';
+import { DATE_LIBRARY } from '../content/dateIdeas';
+import type { Metrics } from '../domain/achievements';
+import { availableChallenges, completedAssignments } from '../domain/challenges';
+import { summarizeStreaks } from '../domain/streaks';
+import { totalPoints } from '../domain/points';
+import { doneLogs } from '../domain/dateNight';
+import type { AppState, Challenge, DayKey, HeartEntry } from '../models/types';
+import { todayKey } from '../domain/time';
+
+/**
+ * Selectores: datos derivados del estado. Se memorizan por referencia
+ * de estado para que la UI pueda llamarlos libremente.
+ */
+
+function memo<R>(fn: (s: AppState) => R): (s: AppState) => R {
+  const cache = new WeakMap<AppState, R>();
+  return (s) => {
+    if (!cache.has(s)) cache.set(s, fn(s));
+    return cache.get(s)!;
+  };
+}
+
+export const selectHeartsByDay = memo((s) => {
+  const m = new Map<DayKey, HeartEntry[]>();
+  for (const h of s.hearts) {
+    const list = m.get(h.day) ?? [];
+    list.push(h);
+    m.set(h.day, list);
+  }
+  return m;
+});
+
+export const selectHeartDays = memo((s) => new Set(s.hearts.map((h) => h.day)));
+
+export const selectTotalPoints = memo((s) => totalPoints(s.ledger));
+
+/** Nota: depende de "hoy"; se recalcula si cambia el día. */
+export function selectStreaks(s: AppState, today = todayKey()) {
+  return streakMemo(s)(today);
+}
+const streakMemo = memo((s) => {
+  const cache = new Map<string, ReturnType<typeof summarizeStreaks>>();
+  return (today: DayKey) => {
+    if (!cache.has(today)) cache.set(today, summarizeStreaks(selectHeartDays(s), today));
+    return cache.get(today)!;
+  };
+});
+
+export const selectAllChallenges = memo((s): Challenge[] => [
+  ...BASE_CHALLENGES,
+  ...s.customChallenges,
+]);
+
+export const selectChallengePool = memo((s) =>
+  availableChallenges(selectAllChallenges(s), s.settings.enabledChallengePacks),
+);
+
+export function findChallenge(s: AppState, id: string) {
+  return selectAllChallenges(s).find((c) => c.id === id);
+}
+
+export function selectAssignment(s: AppState, day: DayKey) {
+  return s.challengeSchedule[day.slice(0, 7)]?.[day];
+}
+
+export const selectMetrics = memo((s): Metrics => ({
+  heartDays: selectHeartDays(s).size,
+  bestStreak: summarizeStreaks(selectHeartDays(s), todayKey()).best,
+  totalPoints: selectTotalPoints(s),
+  challengesCompleted: completedAssignments(s.challengeSchedule).length,
+  datesDone: doneLogs(s.dates.logs).length,
+  favorites: s.dates.favorites.length,
+}));
+
+export const selectRecentActivity = memo((s) =>
+  [...s.ledger].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6),
+);
+
+export const selectDateLibrary = () => DATE_LIBRARY;
+export const selectAchievements = () => ACHIEVEMENTS;

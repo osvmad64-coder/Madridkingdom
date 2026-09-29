@@ -1,0 +1,81 @@
+/* Microanimaciones: rápidas, suaves y sutiles. */
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  15% { transform: scale(1.18); }
+  30% { transform: scale(0.96); }
+  45% { transform: scale(1.08); }
+}
+@keyframes float-up {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(0.9); }
+  15% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -48px) scale(1); }
+}
+@keyframes burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(0.6) rotate(0deg); }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1) rotate(var(--rot)); }
+}
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to { background-position: 200% 0; }
+}
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-10deg); }
+  75% { transform: rotate(10deg); }
+}
+@keyframes flicker {
+  0%, 100% { transform: scale(1) rotate(-2deg); }
+  50% { transform: scale(1.08) rotate(3deg); }
+}
+@keyframes spin-dice {
+  0% { transform: rotate(0) scale(1); }
+  50% { transform: rotate(200deg) scale(1.15); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+@keyframes glow {
+  0%, 100% { box-shadow: var(--shadow-accent); }
+  50% { box-shadow: 0 16px 40px -8px rgba(236, 79, 124, 0.7); }
+}
+
+.anim-fade-up { animation: fade-up var(--dur-slow) var(--ease-out) both; }
+.anim-pop { animation: pop var(--dur-slow) var(--ease-spring) both; }
+.anim-beat { animation: heart-beat 900ms var(--ease-out) both; }
+.anim-flicker { animation: flicker 1.6s ease-in-out infinite; display: inline-block; }
+
+/* Entrada escalonada de listas */
+.stagger > * {
+  animation: fade-up var(--dur-slow) var(--ease-out) both;
+}
+.stagger > *:nth-child(2) { animation-delay: 40ms; }
+.stagger > *:nth-child(3) { animation-delay: 80ms; }
+.stagger > *:nth-child(4) { animation-delay: 120ms; }
+.stagger > *:nth-child(5) { animation-delay: 160ms; }
+.stagger > *:nth-child(6) { animation-delay: 200ms; }
+.stagger > *:nth-child(n + 7) { animation-delay: 240ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}
