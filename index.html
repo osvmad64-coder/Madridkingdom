@@ -83,6 +83,19 @@
   #mapSvg{width:100%; height:auto; display:block; border-radius:4px;}
   #mapSvg.tall{ margin:0 auto; }
   .sp-info{ border-left:3px solid #e6c765; padding-left:8px; }
+  /* ===== Modo Lite (solo si el jugador lo activa): quita lo que más cuesta dibujar, sin tocar el juego ===== */
+  html.lite .terr .hl, html.lite .terr-top .sel-ring, html.lite .atk-mark .bob, html.lite .terr .fog, html.lite .alliance-edge,
+  html.lite .odilio-badge, html.lite .od-svg, html.lite .tut-ring, html.lite .tut-goal{ animation:none !important; }
+  html.lite .terr-top .city, html.lite .terr-top .medal, html.lite .terr-top .ribbon, html.lite button,
+  html.lite .class-card, html.lite .diff-card, html.lite .chapter-card{ transition:none !important; }
+  html.lite .action-bar{ backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+  html.lite .crest, html.lite .od-god, html.lite .od-beam, html.lite .st-meteor, html.lite .st-hammer, html.lite .mg-drop{ filter:none !important; }
+  html.lite .odilio-badge{ box-shadow:0 0 10px var(--oc); }
+  html.lite .toast, html.lite #mapSvg{ box-shadow:none; }
+  .perf-card{ text-align:left; }
+  .perf-opts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:6px; }
+  .perf-opts button{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:8px 10px; }
+  .perf-opts button small{ font-family:'Spectral',serif; font-size:11px; opacity:.85; line-height:1.25; }
   .sp-info small{ opacity:.85; }
   .terr{cursor:pointer;}
 
@@ -3178,6 +3191,40 @@ function factionCrestHTML(ownerId, size){
   return (S.mp.seats[hid]) ? seatCrestHTML(hid, size) : '';
 }
 
+// ================= Rendimiento: Calidad alta / Modo Lite =================
+// Solo cambia cómo se DIBUJA el juego en este teléfono. No toca el estado de la partida, las reglas ni el servidor,
+// así que se puede cambiar en plena partida (online o Mismo teléfono) sin afectar a nadie.
+const PERF_KEY = 'madridKingdom.perf.v1';
+const PERF = { lite:false, decided:false, suggest:false };
+function perfLoad(){ const v = localRead(PERF_KEY) || {}; PERF.lite = !!v.lite; PERF.decided = !!v.decided; perfApply(); }
+function perfApply(){ try{ document.documentElement.classList.toggle('lite', PERF.lite); }catch(e){} }
+function setPerf(lite){
+  PERF.lite = !!lite; PERF.decided = true; PERF.suggest = false;
+  localWrite(PERF_KEY, { lite:PERF.lite, decided:true });
+  perfApply(); MAP_ART.key = null;
+  notify(PERF.lite?'⚡':'✨', PERF.lite ? 'Modo Lite activado: menos efectos, mismo juego.' : 'Calidad alta activada.', 'info');
+  render();
+}
+function perfIsIOS(){ const ua = navigator.userAgent||''; return /iPhone|iPad|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
+// Primera vez: si el equipo parece limitado, se SUGIERE el Modo Lite (nunca se activa solo). En iPhone no se sugiere.
+function perfProbe(){
+  if(PERF.decided || window.__MK_SERVER || perfIsIOS() || typeof requestAnimationFrame!=='function') return;
+  const mem = navigator.deviceMemory, cores = navigator.hardwareConcurrency;
+  const weakHw = (mem && mem<=3) || (cores && cores<=4 && mem && mem<=4);
+  let frames=0, t0=0;
+  const step = t=>{ if(!t0) t0=t; frames++; if(t-t0<1500) requestAnimationFrame(step); else { const fps = frames*1000/(t-t0); if(weakHw || fps<45){ PERF.suggest=true; render(); } } };
+  setTimeout(()=>requestAnimationFrame(step), 1200); // medir ya con el juego en pantalla
+}
+function perfPickerEl(){
+  const box = el(`<div class="perf-opts">
+    <button class="${PERF.lite?'':'tab-active'}"><b>✨ Calidad alta</b><small>Todos los efectos y animaciones.</small></button>
+    <button class="${PERF.lite?'tab-active':''}"><b>⚡ Modo Lite</b><small>Menos efectos y animaciones. El juego es exactamente igual.</small></button></div>`);
+  const [hi, lo] = box.querySelectorAll('button');
+  hi.addEventListener('click', ()=>{ if(PERF.lite || !PERF.decided) setPerf(false); });
+  lo.addEventListener('click', ()=>{ if(!PERF.lite) setPerf(true); });
+  return box;
+}
+
 // ================= Sonido (efectos sintetizados, sin archivos) =================
 let AUDIO_CTX = null;
 function sfx(kind){
@@ -3339,8 +3386,8 @@ function queueStrikesFrom(state){
 function playStrike(ev, done){
   const cls = ODILIO[ev.cls] ? ev.cls : 'guerrero';
   const ov = document.createElement('div'); ov.className='od-strike st-'+cls; ov.style.setProperty('--oc', ev.color);
-  const fx = cls==='mago' ? Array.from({length:7}).map((_,i)=>`<span class="st-meteor" style="left:${10+i*13}%;animation-delay:${(i*0.08).toFixed(2)}s">☄️</span>`).join('')
-    : cls==='picaro' ? Array.from({length:5}).map((_,i)=>`<span class="st-slash" style="top:${18+i*15}%;animation-delay:${(i*0.07).toFixed(2)}s"></span>`).join('')
+  const fx = cls==='mago' ? Array.from({length:PERF.lite?4:7}).map((_,i)=>`<span class="st-meteor" style="left:${10+i*13}%;animation-delay:${(i*0.08).toFixed(2)}s">☄️</span>`).join('')
+    : cls==='picaro' ? Array.from({length:PERF.lite?3:5}).map((_,i)=>`<span class="st-slash" style="top:${18+i*15}%;animation-delay:${(i*0.07).toFixed(2)}s"></span>`).join('')
     : `<span class="st-hammer">🔨</span><span class="st-wave"></span>`;
   ov.innerHTML = `${fx}<div class="st-title">${ev.icon} ${ev.name}</div>
     <div class="st-results">${ev.results.map(r=>`<div class="${r.won?'won':'held'}">${r.won?'🏴 ¡Conquistado!':'🛡️ Resistió'} · <b>${r.name}</b>${r.won?'':` (−${r.lost} tropas)`}</div>`).join('')}</div>`;
@@ -3360,7 +3407,7 @@ function playOdilio(ev, done){
   const color = ODILIO[cls].color;
   const ov = document.createElement('div');
   ov.className = 'odilio od-'+cls; ov.style.setProperty('--oc', color);
-  const parts = Array.from({length:26}).map(()=>{ const ch = cls==='mago' ? pickOf(['✦','✧','⋆','✺']) : (cls==='picaro' ? pickOf(['⟋','⟍','⚡','✦']) : pickOf(['✹','•','✦','🔥']));
+  const parts = Array.from({length:PERF.lite?8:26}).map(()=>{ const ch = cls==='mago' ? pickOf(['✦','✧','⋆','✺']) : (cls==='picaro' ? pickOf(['⟋','⟍','⚡','✦']) : pickOf(['✹','•','✦','🔥']));
     return `<span style="left:${Math.random()*100}%;animation-delay:${(Math.random()*2.2).toFixed(2)}s;font-size:${(10+Math.random()*16).toFixed(0)}px">${ch}</span>`; }).join('');
   ov.innerHTML = `
     <div class="od-flash"></div><div class="od-beam"></div><div class="od-rays"></div>
@@ -3945,6 +3992,10 @@ function renderMainMenu(){
     b.addEventListener('click', ()=>{ menuTab=k; if(k!=='story') storyChapter=null; if(k==='mp') mpConnect(); render(); });
     tabs.appendChild(b);
   });
+  if(PERF.suggest && !PERF.decided){
+    const sug = el(`<div class="continue-box perf-card"><b>⚡ ¿Activar Modo Lite?</b><p class="hint" style="margin:4px 0 0;">Tu dispositivo parece tener rendimiento limitado. El Modo Lite reduce efectos visuales para que el juego vaya más fluido. Las reglas y las partidas no cambian, y puedes cambiarlo cuando quieras en ⚙️ Rendimiento.</p></div>`);
+    sug.appendChild(perfPickerEl()); card.appendChild(sug);
+  }
   card.appendChild(tabs);
   if(menuTab==='quick') card.appendChild(renderQuickTab());
   if(menuTab==='mp') card.appendChild(renderMpTab());
@@ -3953,6 +4004,9 @@ function renderMainMenu(){
   if(menuTab==='story') card.appendChild(renderStoryTab());
   if(menuTab==='hall') card.appendChild(renderHallTab());
   if(menuTab==='ach') card.appendChild(renderAchievementsTab());
+  const perf = el(`<details class="mp-reclaim perf-card" style="margin-top:14px;" ${PERF.open?'open':''}><summary>⚙️ Rendimiento · ${PERF.lite?'⚡ Modo Lite':'✨ Calidad alta'}</summary></details>`);
+  perf.addEventListener('toggle', ()=>{ PERF.open = perf.open; });
+  perf.appendChild(perfPickerEl()); card.appendChild(perf);
   wrap.appendChild(card);
   return wrap;
 }
@@ -4792,7 +4846,7 @@ function decorFor(t, poly, land){
     return null;
   }
   let g='';
-  const add=(n,gap,fn)=>{ for(let i=0;i<n;i++){ const q=spot(gap); if(q) g+=fn(q[0],q[1]); } };
+  const add=(n,gap,fn)=>{ if(PERF.lite) n=Math.ceil(n/2); for(let i=0;i<n;i++){ const q=spot(gap); if(q) g+=fn(q[0],q[1]); } }; // Lite: la mitad de adornos
   if(type==='mount'){ add(3,34,(x,y)=>artChain(x,y,rng,false)); add(3,16,(x,y)=>artHill(x,y,7+rng()*4)); add(2,14,(x,y)=>artConifer(x,y,9)); }
   else if(type==='snow'){ add(3,34,(x,y)=>artChain(x,y,rng,true)); add(12,8,(x,y)=>`<circle cx="${r1(x)}" cy="${r1(y)}" r="${r1(0.8+rng()*1.2)}" fill="#fff" opacity=".75"/>`); }
   else if(type==='hills'){ add(8,18,(x,y)=>artHill(x,y,9+rng()*6)); add(3,14,(x,y)=>artTree(x,y,9)); add(1,30,(x,y)=>artChain(x,y,rng,false)); }
@@ -4868,6 +4922,7 @@ function artCompass(x,y,r){
   return g+`<text x="${x}" y="${y-r-3}" text-anchor="middle" font-family="Cinzel,serif" font-size="9" fill="#e6c765">N</text></g>`;
 }
 function buildOceanDecor(land, rng){
+  if(PERF.lite) return artCompass(MAP_W-48, MAP_H-48, 26); // Lite: sin olas, islotes ni barcos
   let g='';
   for(let i=0;i<70;i++){ const x=12+rng()*(MAP_W-24), y=12+rng()*(MAP_H-24); if(pip([x,y],land)) continue; g+=`<path d="M${r1(x)},${r1(y)}q3,-3 6,0t6,0" stroke="#bfe3ea" stroke-width=".9" fill="none" opacity="${(0.16+rng()*0.2).toFixed(2)}"/>`; }
   let made=0;
@@ -4918,7 +4973,7 @@ function artCity(t){
 }
 function ensureMapArt(){
   MAP_W = S.mapW || 960; MAP_H = S.mapH || 600;
-  const key = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length+'#'+MAP_W+'x'+MAP_H+'#'+(S.walls||[]).length;
+  const key = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length+'#'+MAP_W+'x'+MAP_H+'#'+(S.walls||[]).length+(PERF.lite?'#lite':'');
   if(MAP_ART.key===key) return MAP_ART;
   const cells = voronoiCells(S.territories, MAP_W, MAP_H);
   const seed = hashStr(key) || 99;
@@ -4989,8 +5044,8 @@ function renderMapCard(){
         <path class="fillbase" d="${d}" fill="${col}"/>
         <path class="tint" d="${d}" fill="${TERRAIN_TINT[tex]||'#b9a36a'}" opacity="${tex==='snow'?(neutral?'.22':'.3'):(neutral?'.14':'.2')}"/>
         <g class="decor" clip-path="url(#clip-${t.id})">${A.decor[t.id]}</g>
-        <path class="relief" d="${d}" fill="url(#relief)"/>
-        <g class="shade" clip-path="url(#clip-${t.id})"><path d="${d}" fill="none" stroke="${INK}" stroke-opacity=".10" stroke-width="18"/><path d="${d}" fill="none" stroke="${INK}" stroke-opacity=".12" stroke-width="9"/></g>
+        ${PERF.lite ? '' : `<path class="relief" d="${d}" fill="url(#relief)"/>`}
+        ${PERF.lite ? '' : `<g class="shade" clip-path="url(#clip-${t.id})"><path d="${d}" fill="none" stroke="${INK}" stroke-opacity=".10" stroke-width="18"/><path d="${d}" fill="none" stroke="${INK}" stroke-opacity=".12" stroke-width="9"/></g>`}
         ${fogged? `<path class="fog-veil" d="${d}" fill="#1e2733" fill-opacity=".28"/><path class="fog" d="${d}" fill="url(#fogPat)"/>` : ''}
         <path class="hovershade" d="${d}"/>
         <path class="hl" d="${d}" fill="none" clip-path="url(#clip-${t.id})"/>
@@ -5042,7 +5097,7 @@ function renderMapCard(){
       ${allianceSvg}
       ${topSvg}
       <rect x="0" y="0" width="${w}" height="${h}" fill="${stage.tint}" opacity=".55" style="pointer-events:none"/>
-      <rect x="0" y="0" width="${w}" height="${h}" filter="url(#grain)" opacity=".4" style="pointer-events:none"/>
+      ${PERF.lite ? '' : `<rect class="map-grain" x="0" y="0" width="${w}" height="${h}" filter="url(#grain)" opacity=".4" style="pointer-events:none"/>`}
       <g style="pointer-events:none">${A.frame}</g>
     </svg>
   `));
@@ -5353,6 +5408,11 @@ function renderModal(){
     modal.appendChild(closeBtn());
   }
 
+  if(pendingModal==='perf'){
+    modal.innerHTML = `<h2>⚙️ Rendimiento</h2><p class="hint">Solo cambia los efectos visuales de este teléfono. La partida, las reglas y los demás jugadores no se ven afectados.</p>`;
+    modal.appendChild(perfPickerEl());
+    modal.appendChild(closeBtn());
+  }
   if(pendingModal==='more'){
     modal.innerHTML = `<h2>☰ Más acciones</h2>${S.mp && !LOCAL.active && myPin()?`<p class="hint">🔑 Tu clave para volver a esta partida: <b>${myPin()}</b> · Sala <b>${MP.room?MP.room.code:''}</b></p>`:''}`;
     const grid = el(`<div class="more-grid"></div>`);
@@ -5362,6 +5422,7 @@ function renderModal(){
     add('💰 Mercado','Vender tropas', false, ()=>{ pendingModal='trade'; render(); });
     add('👤 Perfil','Estadísticas y equipo', false, ()=>{ pendingModal='profile'; render(); });
     add('📜 Crónica','Lo que ha pasado', false, ()=>{ pendingModal='chronicle'; render(); });
+    add('⚙️ Rendimiento', PERF.lite?'⚡ Modo Lite':'✨ Calidad alta', false, ()=>{ pendingModal='perf'; render(); });
     if(S.mp && !LOCAL.active){ add('💬 Chat', MP.chatUnread?`${MP.chatUnread} sin leer`:'Habla con tus rivales', false, ()=>{ pendingModal=null; render(); openChat(); }); add(myPushOn()?'🔔 Avisos: activados':'🔔 Activar avisos', myPushOn()?'Probar aviso':'Te avisa cuando sea tu turno', false, ()=>{ pendingModal=null; myPushOn()?testPush():enablePush(); }); }
     if(S.mp) add(LOCAL.active?'💾 Guardar y salir':'🚪 Salir de la partida', LOCAL.active?'Continúenla después':'Podrás volver con el mismo código', false, ()=>{ pendingModal=null; mpLeaveGameView(); }, 'ghost');
     else add('💾 Guardar y volver','Al menú principal', false, ()=>{ pendingModal=null; saveAndExit(); }, 'ghost');
@@ -5504,8 +5565,10 @@ function renderGameOver(){
 }
 
 P = mergeProfile(localRead(PROFILE_KEY));
+perfLoad();
 newGame();
 render();
+perfProbe();
 initCloud();
 if(!window.__MK_SERVER){
   const invite = new URLSearchParams(location.search).get('sala');
