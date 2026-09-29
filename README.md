@@ -68,6 +68,8 @@ En **⚙️ Rendimiento** (menú principal o ☰ Más durante la partida) cada j
 - **✨ Calidad alta** (predeterminado): todos los efectos, igual que siempre.
 - **⚡ Modo Lite:** sin textura de grano, sin relieve ni sombras internas en el mapa, sin animaciones continuas, sin desenfoques, la mitad de adornos y menos partículas en Odilio. El mapa pesa ~27% menos y cada actualización de pantalla es ~25–45% más rápida en teléfonos lentos.
 
+- **🪶 Lite Extremo** (Android muy lentos): todo lo de Lite y además mapa con fronteras rectas y sin texturas ni casitas decorativas, nada animado, sin sombras ni filtros, Odilio como aviso en vez de escena animada, el mapa ya dibujado se reutiliza si no cambió, los avisos se quitan sin redibujar la pantalla, varios redibujados seguidos se juntan en uno, no se dibuja con la app en segundo plano y el chat solo actualiza su contador. En un teléfono lento simulado, tocar una tierra pasa de ~410–640 ms a ~130–200 ms.
+
 Solo cambia el dibujo en ese teléfono: la partida, las reglas y los demás jugadores no se ven afectados, y se puede cambiar en plena partida. Si el juego detecta un equipo limitado la primera vez, sugiere el Modo Lite (nunca en iPhone y nunca lo activa solo).
 
 ## Cómo funcionan las partidas largas
