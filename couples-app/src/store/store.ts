@@ -3,6 +3,8 @@ import type { AppState } from '../models/types';
 import { LocalStorageAdapter, type StorageAdapter } from '../storage/adapter';
 import { applyAchievements, makeCtx, type Action, type Effect } from './actions';
 import { createInitialState, migrate } from './initialState';
+import { media } from '../storage/media';
+import { mediaInUse } from '../features/positions/service';
 
 /**
  * Store central. Mantiene el estado, ejecuta acciones puras, avisa a la UI
@@ -26,8 +28,11 @@ export class AppStore {
   async init() {
     const saved = await this.storage.load<unknown>(STATE_KEY);
     this.state = saved ? migrate(saved) : createInitialState();
-    if (!saved) await this.storage.save(STATE_KEY, this.state);
+    // Guarda de inmediato si es nuevo o si se migró desde una versión anterior.
+    if (!saved || (saved as { schemaVersion?: number }).schemaVersion !== this.state.schemaVersion)
+      await this.storage.save(STATE_KEY, this.state);
     this.emit();
+    void this.cleanupMedia();
   }
 
   getState = () => this.state;
@@ -64,6 +69,17 @@ export class AppStore {
     this.saveTimer = null;
     void this.storage.save(STATE_KEY, this.state);
   };
+
+  /** Borra imágenes que ya no usa ningún elemento ni el historial. */
+  private async cleanupMedia() {
+    try {
+      const used = mediaInUse(this.state);
+      const all = await media.all();
+      for (const id of Object.keys(all)) if (!used.has(id)) await media.remove(id);
+    } catch {
+      /* sin almacén de medios */
+    }
+  }
 
   private scheduleSave() {
     if (this.saveTimer) clearTimeout(this.saveTimer);

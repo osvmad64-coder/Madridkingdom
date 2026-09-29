@@ -1,5 +1,5 @@
 import { BUDGETS, DURATIONS, ENERGIES, LOCATIONS, MOODS, type Option } from '../../content/dateOptions';
-import { activeFilterCount, EMPTY_FILTERS, filterIdeas } from '../../domain/dateNight';
+import { activeFilterCount, EMPTY_FILTERS, filterIdeas } from '../../features/dates/service';
 import type { DateCategory, DateFilters } from '../../models/types';
 import { selectDateLibrary } from '../../store/selectors';
 import { useAppState } from '../../store/store';
@@ -7,7 +7,7 @@ import { setFilters, toggleFilter, useFilters } from '../../store/uiState';
 import { Button, Chip } from '../../ui/controls';
 import { Sheet } from '../../ui/overlays';
 
-/** Hoja de filtros con chips (sin dropdowns). */
+/** Hoja de filtros con chips. Cuenta solo citas que existen en la biblioteca. */
 
 const GROUPS: { key: keyof DateFilters; title: string; options: Option<string>[] }[] = [
   { key: 'budget', title: 'Presupuesto', options: BUDGETS },
@@ -20,15 +20,18 @@ const GROUPS: { key: keyof DateFilters; title: string; options: Option<string>[]
 export function FilterSheet({
   open,
   onClose,
+  onShow,
   category,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Acción del botón principal (por defecto, cerrar). */
+  onShow?: () => void;
   category?: DateCategory | null;
 }) {
   const s = useAppState();
   const filters = useFilters();
-  const count = filterIdeas(selectDateLibrary(), { filters, category, settings: s.settings }).length;
+  const count = filterIdeas(selectDateLibrary(s), { filters, category, settings: s.settings }).length;
 
   return (
     <Sheet open={open} onClose={onClose} label="Filtros">
@@ -58,8 +61,8 @@ export function FilterSheet({
             </div>
           </div>
         ))}
-        <Button variant="primary" size="lg" block onClick={onClose} disabled={count === 0}>
-          {count === 0 ? 'Sin ideas con estos filtros' : `Ver ${count} ${count === 1 ? 'idea' : 'ideas'}`}
+        <Button variant="primary" size="lg" block onClick={onShow ?? onClose} disabled={count === 0}>
+          {count === 0 ? 'Ninguna cita suya coincide' : `Ver ${count} ${count === 1 ? 'cita' : 'citas'}`}
         </Button>
       </div>
     </Sheet>

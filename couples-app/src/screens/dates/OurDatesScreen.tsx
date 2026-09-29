@@ -1,108 +1,107 @@
 import { useState } from 'react';
 import { navigate } from '../../app/router';
-import { CATEGORIES } from '../../content/dateOptions';
-import { doneLogs, findIdea, plannedLogs } from '../../domain/dateNight';
+import { dateSnapshot, doneLogs, logView, plannedLogs } from '../../features/dates/service';
+import { removeDateLog } from '../../features/dates/actions';
+import { IdeaLibraryCard } from '../../features/dates/ui/IdeaLibraryCard';
 import { shortDayLabel, todayKey } from '../../domain/time';
-import type { DateIdea } from '../../models/types';
-import { removeDateLog } from '../../store/actions';
-import { selectDateLibrary } from '../../store/selectors';
 import { dispatch, useAppState } from '../../store/store';
-import { Segmented } from '../../ui/controls';
-import { EmptyState, ScreenHeader, StatTile } from '../../ui/display';
-import { Icon } from '../../ui/Icon';
+import { Button, Segmented } from '../../ui/controls';
+import { EmptyState, ScreenHeader } from '../../ui/display';
 
-/** 💕 Nuestras citas: favoritas, pendientes/próximas y realizadas. */
+/** 💕 Nuestras citas: la biblioteca personal (todas, favoritas, realizadas, pendientes). */
 
-type Tab = 'favorites' | 'pending' | 'done';
+type Tab = 'all' | 'favorites' | 'done' | 'pending';
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'all', label: 'Todas' },
   { id: 'favorites', label: 'Favoritas' },
-  { id: 'pending', label: 'Pendientes' },
   { id: 'done', label: 'Realizadas' },
+  { id: 'pending', label: 'Pendientes' },
 ];
 
 export function OurDatesScreen({ initialTab }: { initialTab: string | null }) {
   const s = useAppState();
-  const [tab, setTab] = useState<Tab>((TABS.find((t) => t.id === initialTab)?.id as Tab) ?? 'favorites');
-  const lib = selectDateLibrary();
+  const [tab, setTab] = useState<Tab>((TABS.find((t) => t.id === initialTab)?.id as Tab) ?? 'all');
+  const lib = s.dateIdeas;
   const today = todayKey();
-  const favorites = s.dates.favorites.map((id) => findIdea(lib, id)).filter(Boolean) as DateIdea[];
+  const favorites = lib.filter((i) => s.dates.favorites.includes(i.id));
   const pending = plannedLogs(s.dates.logs);
   const done = doneLogs(s.dates.logs);
 
+  const ideaCard = (i: (typeof lib)[number], sub?: string) => (
+    <IdeaLibraryCard key={i.id} ideaId={i.id} data={dateSnapshot(i)} imageId={i.imageId} sub={sub} onOpen={() => navigate(`/citas/idea/${i.id}`)} />
+  );
+
   return (
-    <div className="stack" style={{ '--gap': '18px' } as React.CSSProperties}>
-      <ScreenHeader onBack={() => navigate('/citas')} backLabel="Date night" eyebrow="Historial" title={<>Nuestras <em>citas</em></>} />
-
-      <div className="grid-3">
-        <StatTile emoji="💕" value={done.length} label="realizadas" />
-        <StatTile emoji="❤️" value={favorites.length} label="favoritas" />
-        <StatTile emoji="📅" value={pending.length} label="pendientes" />
-      </div>
-
+    <div className="stack" style={{ '--gap': '16px' } as React.CSSProperties}>
+      <ScreenHeader
+        onBack={() => navigate('/citas')}
+        backLabel="Date night"
+        eyebrow={`${lib.length} ${lib.length === 1 ? 'plan guardado' : 'planes guardados'}`}
+        title={<>Nuestra <em>biblioteca</em></>}
+      />
+      <Button variant="primary" size="lg" block onClick={() => navigate('/citas/nueva')}>
+        + Nueva cita
+      </Button>
       <Segmented options={TABS} value={tab} onChange={setTab} />
 
-      {tab === 'favorites' &&
-        (favorites.length ? (
-          <div className="list stagger" key="fav">
-            {favorites.map((i) => (
-              <IdeaRow key={i.id} idea={i} right={<span>❤️</span>} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState emoji="🤍" title="Sin favoritas todavía">Toquen ❤️ en una cita para guardarla aquí.</EmptyState>
-        ))}
+      <div className="stack stagger" style={{ '--gap': '10px' } as React.CSSProperties} key={tab}>
+        {tab === 'all' &&
+          (lib.length ? lib.map((i) => ideaCard(i)) : (
+            <EmptyState emoji="💕" title="Aún no hay citas">Agreguen la primera con “+ Nueva cita”.</EmptyState>
+          ))}
 
-      {tab === 'pending' &&
-        (pending.length ? (
-          <div className="list stagger" key="pen">
-            {pending.map((l) => {
-              const i = findIdea(lib, l.ideaId);
-              if (!i) return null;
-              const upcoming = l.plannedFor && l.plannedFor > today;
+        {tab === 'favorites' &&
+          (favorites.length ? favorites.map((i) => ideaCard(i)) : (
+            <EmptyState emoji="🤍" title="Sin favoritas todavía">Toquen ❤️ en una cita para guardarla aquí.</EmptyState>
+          ))}
+
+        {tab === 'done' &&
+          (done.length ? (
+            done.map((l) => {
+              const v = logView(l, lib);
+              if (!v) return null;
+              const when = l.doneDay ? `✓ Realizada el ${shortDayLabel(l.doneDay)}` : '✓ Realizada';
               return (
-                <IdeaRow
+                <IdeaLibraryCard
                   key={l.id}
-                  idea={i}
-                  sub={upcoming ? `Próxima · ${shortDayLabel(l.plannedFor!)}` : 'En marcha'}
-                  right={
-                    <button type="button" className="btn btn--ghost btn--icon" aria-label="Quitar" onClick={(e) => { e.stopPropagation(); dispatch(removeDateLog(l.id)); }}>
-                      <Icon name="close" size={18} />
-                    </button>
-                  }
+                  ideaId={l.ideaId}
+                  data={v}
+                  imageId={v.idea?.imageId}
+                  deleted={v.deleted}
+                  sub={v.deleted ? `${when} · ya no está en la biblioteca` : when}
+                  onOpen={v.deleted ? undefined : () => navigate(`/citas/idea/${l.ideaId}`)}
                 />
               );
-            })}
-          </div>
-        ) : (
-          <EmptyState emoji="📅" title="Nada pendiente">Toquen “Empezar” o “Planear” en una cita.</EmptyState>
-        ))}
+            })
+          ) : (
+            <EmptyState emoji="🌙" title="Aún no hay citas realizadas">Márquenlas con “✅ Marcar como realizada”.</EmptyState>
+          ))}
 
-      {tab === 'done' &&
-        (done.length ? (
-          <div className="list stagger" key="done">
-            {done.map((l) => {
-              const i = findIdea(lib, l.ideaId);
-              if (!i) return null;
-              return <IdeaRow key={l.id} idea={i} sub={`✓ ${l.doneDay ? shortDayLabel(l.doneDay) : ''}`} right={<span className="badge badge--success">Hecha</span>} />;
-            })}
-          </div>
-        ) : (
-          <EmptyState emoji="🌙" title="Aún no hay citas realizadas">Su primera cita está a un 🎲 de distancia.</EmptyState>
-        ))}
-    </div>
-  );
-}
-
-function IdeaRow({ idea, sub, right }: { idea: DateIdea; sub?: string; right?: React.ReactNode }) {
-  const tone = CATEGORIES.find((c) => c.id === idea.category)?.tone;
-  return (
-    <div className="list-row" role="button" tabIndex={0} onClick={() => navigate(`/citas/idea/${idea.id}`)}>
-      <span className="list-row__icon" data-tone={tone}>{idea.emoji}</span>
-      <div className="grow">
-        <p style={{ fontWeight: 700 }}>{idea.title}</p>
-        <p className="tiny muted">{sub ?? CATEGORIES.find((c) => c.id === idea.category)?.label}</p>
+        {tab === 'pending' &&
+          (pending.length ? (
+            pending.map((l) => {
+              const v = logView(l, lib);
+              if (!v) return null;
+              const upcoming = l.plannedFor && l.plannedFor > today;
+              return (
+                <div key={l.id} className="stack" style={{ '--gap': '4px' } as React.CSSProperties}>
+                  <IdeaLibraryCard
+                    ideaId={l.ideaId}
+                    data={v}
+                    imageId={v.idea?.imageId}
+                    sub={upcoming ? `📅 Próxima · ${shortDayLabel(l.plannedFor!)}` : '✨ En marcha'}
+                    onOpen={() => navigate(`/citas/idea/${l.ideaId}`)}
+                  />
+                  <button type="button" className="link" style={{ alignSelf: 'flex-end' }} onClick={() => dispatch(removeDateLog(l.id))}>
+                    Quitar de pendientes
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <EmptyState emoji="📅" title="Nada pendiente">Toquen “Empezar” o “Planear” en una cita.</EmptyState>
+          ))}
       </div>
-      {right}
     </div>
   );
 }

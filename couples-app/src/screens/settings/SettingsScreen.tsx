@@ -11,7 +11,7 @@ import {
   updateSettings,
 } from '../../store/actions';
 import { buildDemoState } from '../../store/demo';
-import { migrate } from '../../store/initialState';
+import { backupFileName, createBackup, parseBackup, restoreMedia } from '../../storage/backup';
 import { dispatch, store, useAppState } from '../../store/store';
 import { Button, Chip, Switch } from '../../ui/controls';
 import { ScreenHeader, SectionHead } from '../../ui/display';
@@ -27,22 +27,28 @@ export function SettingsScreen() {
   const [message, setMessage] = useState(s.profile.message ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify(store.getState(), null, 2)], { type: 'application/json' });
+  const [notice, setNotice] = useState('');
+  const exportData = async () => {
+    const backup = await createBackup(store.getState());
+    const blob = new Blob([JSON.stringify(backup)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `nosotros-respaldo-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = backupFileName();
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   const importData = async (file: File) => {
     try {
-      const data = JSON.parse(await file.text());
-      dispatch(replaceState(migrate(data)));
+      const { state, media } = parseBackup(await file.text());
+      await restoreMedia(media);
+      dispatch(replaceState(state));
+      setNotice('Respaldo restaurado ✓');
     } catch {
-      alert('Ese archivo no parece un respaldo válido.');
+      setNotice('Ese archivo no parece un respaldo de la app. Elijan el .json que descargaron.');
     }
   };
+  const activeChallenges = s.challenges.filter((c) => c.active).length;
+  const activePositions = s.positions.filter((p) => p.active).length;
 
   return (
     <div className="stack" style={{ '--gap': '18px' } as React.CSSProperties}>
@@ -86,6 +92,28 @@ export function SettingsScreen() {
         />
       </div>
 
+      <SectionHead title="🔒 Contenido privado" />
+      <div className="list">
+        <button type="button" className="list-row" onClick={() => navigate('/ajustes/retos')}>
+          <span className="list-row__icon" data-tone="rose">🎯</span>
+          <div className="grow">
+            <p style={{ fontWeight: 700 }}>Mis retos</p>
+            <p className="tiny muted">{activeChallenges} activos · {s.challenges.length} en total</p>
+          </div>
+          <Icon name="chevronRight" size={20} />
+        </button>
+        <button type="button" className="list-row" onClick={() => navigate('/ajustes/posiciones')}>
+          <span className="list-row__icon" data-tone="coral">💋</span>
+          <div className="grow">
+            <p style={{ fontWeight: 700 }}>Posiciones especiales</p>
+            <p className="tiny muted">
+              {activePositions} activas · aparecen en {Math.round(s.settings.positionFrequency * 100)}% de los días con reto
+            </p>
+          </div>
+          <Icon name="chevronRight" size={20} />
+        </button>
+      </div>
+
       <SectionHead title="Date night" />
       <div className="card card--flat stack" style={{ '--gap': '12px' } as React.CSSProperties}>
         <p className="small muted">Categorías que queremos ver</p>
@@ -118,13 +146,13 @@ export function SettingsScreen() {
 
       <SectionHead title="Nuestros datos" />
       <div className="list">
-        <button type="button" className="list-row" onClick={exportData}>
+        <button type="button" className="list-row" onClick={() => void exportData()}>
           <span className="list-row__icon">💾</span>
-          <div className="grow"><p style={{ fontWeight: 700 }}>Descargar respaldo</p></div>
+          <div className="grow"><p style={{ fontWeight: 700 }}>Exportar respaldo (JSON)</p><p className="tiny muted">Para pasar todo a otro teléfono</p></div>
         </button>
         <button type="button" className="list-row" onClick={() => fileRef.current?.click()}>
           <span className="list-row__icon">📥</span>
-          <div className="grow"><p style={{ fontWeight: 700 }}>Restaurar respaldo</p></div>
+          <div className="grow"><p style={{ fontWeight: 700 }}>Importar respaldo (JSON)</p></div>
         </button>
         <button type="button" className="list-row" onClick={() => setConfirm('demo')}>
           <span className="list-row__icon">🧪</span>
@@ -150,8 +178,10 @@ export function SettingsScreen() {
         }}
       />
 
+      {notice && <p className="small center" role="status">{notice}</p>}
+
       <p className="tiny muted center" style={{ padding: '4px 12px' }}>
-        🔒 Todo se guarda solo en este teléfono. Sin cuentas, sin analytics, sin enviar nada a nadie.
+        🔒 Todo se guarda solo en este teléfono (retos, posiciones, imágenes y citas incluidos). Sin cuentas, sin analytics, sin enviar nada a nadie.
       </p>
 
       <PartnerSheet index={editing} partner={editing === null ? null : s.profile.partners[editing]} onClose={() => setEditing(null)} />
@@ -160,12 +190,16 @@ export function SettingsScreen() {
         <div className="stack">
           <div className="celebrate-emoji">{confirm === 'reset' ? '🗑️' : '🧪'}</div>
           <h2 className="title">{confirm === 'reset' ? '¿Borrar todo?' : '¿Cargar datos de ejemplo?'}</h2>
-          <p className="small muted">Esto reemplaza los datos actuales de este teléfono. Descarguen un respaldo si quieren conservarlos.</p>
+          <p className="small muted">
+            {confirm === 'reset'
+              ? 'Se borran registros, puntos, citas, posiciones y retos propios de este teléfono. Descarguen un respaldo si quieren conservarlos.'
+              : 'Reemplaza calendario, puntos y citas por datos de ejemplo. Sus retos y posiciones se conservan.'}
+          </p>
           <Button
             variant="primary"
             block
             onClick={() => {
-              dispatch(confirm === 'reset' ? resetAll : replaceState(buildDemoState()));
+              dispatch(confirm === 'reset' ? resetAll : replaceState(buildDemoState(Date.now(), store.getState())));
               setConfirm(null);
               navigate('/');
             }}

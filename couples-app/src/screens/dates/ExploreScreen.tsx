@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { navigate } from '../../app/router';
 import { CATEGORIES } from '../../content/dateOptions';
-import { activeFilterCount, EMPTY_FILTERS, filterIdeas, pickIdea } from '../../domain/dateNight';
+import { activeFilterCount, EMPTY_FILTERS, filterIdeas, pickIdea, recentToAvoid } from '../../features/dates/service';
 import { todayKey } from '../../domain/time';
 import type { DateCategory } from '../../models/types';
 import { markShown, planDate } from '../../store/actions';
-import { selectDateLibrary } from '../../store/selectors';
 import { dispatch, store, useAppState } from '../../store/store';
 import { setFilters, useFilters } from '../../store/uiState';
 import { Button, Chip } from '../../ui/controls';
@@ -21,14 +20,15 @@ export function ExploreScreen({ category: initial }: { category: string | null }
   const [category, setCategory] = useState<DateCategory | null>((initial as DateCategory) || null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const matches = useMemo(
-    () => filterIdeas(selectDateLibrary(), { filters, category, settings: s.settings }),
-    [filters, category, s.settings],
+    () => filterIdeas(s.dateIdeas, { filters, category, settings: s.settings }),
+    [s.dateIdeas, filters, category, s.settings],
   );
   const [currentId, setCurrentId] = useState<string | null>(null);
 
   // Elegir una idea cuando cambian los resultados.
   useEffect(() => {
-    const pick = pickIdea(matches, store.getState().dates.recent);
+    const st = store.getState();
+    const pick = pickIdea(matches, recentToAvoid(st.dates.recent, st.settings.avoidRepeatDays, Date.now()));
     setCurrentId(pick?.id ?? null);
     if (pick) dispatch(markShown(pick.id));
   }, [matches]);
@@ -38,7 +38,7 @@ export function ExploreScreen({ category: initial }: { category: string | null }
   const nFilters = activeFilterCount(filters);
 
   const another = () => {
-    const pick = pickIdea(matches, s.dates.recent, { exclude: currentId ?? undefined });
+    const pick = pickIdea(matches, recentToAvoid(s.dates.recent, s.settings.avoidRepeatDays, Date.now()), { exclude: currentId ?? undefined });
     if (pick) {
       setCurrentId(pick.id);
       dispatch(markShown(pick.id));

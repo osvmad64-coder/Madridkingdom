@@ -13,6 +13,8 @@ export interface Route {
   segments: string[];
   query: URLSearchParams;
   tab: TabId;
+  /** Ruta completa (con query): cambia la pantalla aunque el path sea igual. */
+  key: string;
 }
 
 const TAB_BY_SEGMENT: Record<string, TabId> = {
@@ -35,7 +37,7 @@ function parse(): Route {
   const raw = window.location.hash.replace(/^#/, '') || '/';
   const [path, qs = ''] = raw.split('?');
   const segments = path.split('/').filter(Boolean);
-  return { path, segments, query: new URLSearchParams(qs), tab: TAB_BY_SEGMENT[segments[0] ?? ''] ?? 'home' };
+  return { path, segments, query: new URLSearchParams(qs), tab: TAB_BY_SEGMENT[segments[0] ?? ''] ?? 'home', key: raw };
 }
 
 let current = parse();

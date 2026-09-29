@@ -5,6 +5,7 @@ import { IdeaDetail } from './IdeaDetail';
 import { OurDatesScreen } from './OurDatesScreen';
 import { RandomSettingsScreen } from './RandomSettingsScreen';
 import { SurpriseScreen } from './SurpriseScreen';
+import { DateEditorScreen } from '../../features/dates/ui/DateEditorScreen';
 
 /** Sub-rutas de Date Night: /citas/... */
 export function DatesRouter({ route }: { route: Route }) {
@@ -18,6 +19,10 @@ export function DatesRouter({ route }: { route: Route }) {
       return <IdeaDetail id={id} />;
     case 'nuestras':
       return <OurDatesScreen initialTab={route.query.get('tab')} />;
+    case 'nueva':
+      return <DateEditorScreen />;
+    case 'editar':
+      return <DateEditorScreen id={id} />;
     case 'random':
       return <RandomSettingsScreen />;
     default:

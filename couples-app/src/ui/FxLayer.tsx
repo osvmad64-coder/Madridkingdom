@@ -65,6 +65,16 @@ export function FxLayer() {
             haptic([10, 40, 10]);
             break;
           }
+          case 'position': {
+            const b = makeBurst(['💋', '🔥', '✨']);
+            setBursts((l) => [...l, b]);
+            setTimeout(() => setBursts((l) => l.filter((x) => x.id !== b.id)), 1100);
+            showToast('💋', 'Posición completada');
+            break;
+          }
+          case 'saved':
+            showToast('✓', e.text);
+            break;
           case 'favorite':
             if (e.added) showToast('❤️', 'Guardada en favoritas');
             break;

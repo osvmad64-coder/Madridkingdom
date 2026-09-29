@@ -93,7 +93,7 @@ interface SegmentedProps<T extends string> {
 export function Segmented<T extends string>({ options, value, onChange }: SegmentedProps<T>) {
   const index = Math.max(0, options.findIndex((o) => o.id === value));
   return (
-    <div className="segmented" role="group">
+    <div className={`segmented ${options.length > 3 ? 'segmented--dense' : ''}`} role="group">
       <span
         className="segmented__thumb"
         style={{

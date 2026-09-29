@@ -100,3 +100,5 @@ export const SURPRISE_THINKING = [
 export function labelOf<T extends string>(list: Option<T>[], id: T): Option<T> | undefined {
   return list.find((o) => o.id === id);
 }
+
+export const LEVEL_LABEL: Record<1 | 2 | 3, string> = { 1: 'baja', 2: 'media', 3: 'alta' };

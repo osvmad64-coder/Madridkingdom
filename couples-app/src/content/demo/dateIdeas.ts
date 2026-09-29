@@ -1,12 +1,13 @@
-import type { DateIdea } from '../models/types';
+import type { DateIdea } from '../../models/types';
 
 /**
- * Biblioteca de citas (ejemplos de la Fase 1).
- * Cada cita es una EXPERIENCIA con dinámica, no solo una actividad.
- * Para agregar más, añade objetos a este arreglo (o crea más archivos y
- * concaténalos en DATE_LIBRARY). Ningún componente depende del contenido.
+ * Citas de DEMOSTRACIÓN (fase 1). Ya no son la biblioteca de la app:
+ * solo se cargan con "Ajustes → Cargar datos de ejemplo" o al migrar
+ * datos antiguos que las usaban (favoritas / historial).
  */
-export const DATE_IDEAS: DateIdea[] = [
+type DemoIdea = Omit<DateIdea, 'createdAt' | 'updatedAt'>;
+
+const DEMO: DemoIdea[] = [
   {
     id: 'sunset-date',
     title: 'Sunset Date',
@@ -416,4 +417,6 @@ export const DATE_IDEAS: DateIdea[] = [
   },
 ];
 
-export const DATE_LIBRARY: DateIdea[] = [...DATE_IDEAS];
+export function demoDateIdeas(now: number, ids?: string[]): DateIdea[] {
+  return DEMO.filter((d) => !ids || ids.includes(d.id)).map((d) => ({ ...d, createdAt: now, updatedAt: now }));
+}

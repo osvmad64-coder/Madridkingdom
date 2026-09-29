@@ -1,7 +1,8 @@
 import { BUDGETS, CATEGORIES, DURATIONS, ENERGIES, LOCATIONS, labelOf } from '../../content/dateOptions';
 import { dateReward } from '../../domain/points';
 import type { DateIdea } from '../../models/types';
-import { toggleFavorite } from '../../store/actions';
+import { toggleFavorite } from '../../features/dates/actions';
+import { useMedia } from '../../ui/useMedia';
 import { dispatch, useAppState } from '../../store/store';
 import { Button } from '../../ui/controls';
 import { formatNumber } from '../../ui/display';
@@ -16,7 +17,7 @@ export function useIdeaMeta(idea: DateIdea) {
     meta: [
       { k: 'Presupuesto', v: labelOf(BUDGETS, idea.budget) },
       { k: 'Duración', v: labelOf(DURATIONS, idea.duration) },
-      { k: 'Lugar', v: labelOf(LOCATIONS, idea.location[0]) },
+      { k: 'Lugar', v: labelOf(LOCATIONS, idea.location[0] ?? 'anywhere') },
       { k: 'Energía', v: labelOf(ENERGIES, idea.energy) },
     ],
   };
@@ -47,10 +48,11 @@ interface Props {
 
 export function DateCard({ idea, onAnother, onStart, onOpen }: Props) {
   const { cat, meta } = useIdeaMeta(idea);
+  const img = useMedia(idea.imageId);
   return (
     <article className="date-card anim-pop" key={idea.id}>
-      <div className="date-card__hero" data-tone={cat?.tone}>
-        <span className="date-card__emoji">{idea.emoji}</span>
+      <div className={`date-card__hero ${img ? 'has-image' : ''}`} data-tone={cat?.tone}>
+        {img ? <img src={img} alt="" /> : <span className="date-card__emoji">{idea.emoji}</span>}
         <span className="badge date-card__cat">
           {cat?.emoji} {cat?.label}
         </span>

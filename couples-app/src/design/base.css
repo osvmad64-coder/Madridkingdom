@@ -102,6 +102,7 @@ p {
   height: 100dvh;
   width: 100%;
   overflow: hidden;
+  overflow: clip; /* evita desplazamientos laterales por scrollIntoView/focus */
   background: var(--bg-grad);
   isolation: isolate;
   transition: background var(--dur-slow) var(--ease-out);

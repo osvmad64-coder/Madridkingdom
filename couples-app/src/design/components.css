@@ -369,6 +369,11 @@
   color: var(--ink-2);
   transition: color var(--dur-med);
 }
+.segmented--dense button {
+  font-size: var(--fs-xs);
+  padding: 0 2px;
+  letter-spacing: -0.01em;
+}
 .segmented button[aria-pressed='true'] {
   color: var(--ink);
 }
@@ -588,9 +593,10 @@
 }
 .toast {
   position: absolute;
-  left: 50%;
+  left: 16px;
+  right: 16px;
+  margin-inline: auto;
   top: calc(var(--safe-top) + 14px);
-  transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -602,7 +608,7 @@
   font-weight: var(--fw-bold);
   box-shadow: var(--shadow-lg);
   animation: fade-up var(--dur-med) var(--ease-out) both;
-  white-space: nowrap;
+  width: fit-content;
 }
 .toast__emoji {
   font-size: 20px;

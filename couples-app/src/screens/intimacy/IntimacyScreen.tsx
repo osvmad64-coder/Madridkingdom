@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import { pointsInRange } from '../../domain/points';
 import { addMonths, daysInMonth, monthKeyOf, todayKey } from '../../domain/time';
 import type { DayKey } from '../../models/types';
-import { ensureMonthSchedule } from '../../store/actions';
+import { ensureCalendarMonth } from '../../store/actions';
 import { selectHeartsByDay, selectStreaks } from '../../store/selectors';
 import { dispatch, useAppState } from '../../store/store';
 import { formatNumber, ScreenHeader, SectionHead } from '../../ui/display';
 import { Calendar } from './Calendar';
-import { ChallengeCard } from './ChallengeCard';
+import { ChallengeCard } from '../../features/challenges/ui/ChallengeCard';
 import { DaySheet } from './DaySheet';
 
 export function IntimacyScreen() {
@@ -17,7 +17,7 @@ export function IntimacyScreen() {
   const [selected, setSelected] = useState<DayKey | null>(null);
 
   useEffect(() => {
-    dispatch(ensureMonthSchedule(month));
+    dispatch(ensureCalendarMonth(month));
   }, [month]);
 
   const heartsByDay = selectHeartsByDay(s);
@@ -60,6 +60,7 @@ export function IntimacyScreen() {
         today={today}
         heartsByDay={heartsByDay}
         challenges={schedule}
+        positions={s.positionSchedule[month]?.days ?? {}}
         notes={s.dayNotes}
         onSelect={setSelected}
         onMonthChange={(d) => setMonth((m) => addMonths(m, d))}

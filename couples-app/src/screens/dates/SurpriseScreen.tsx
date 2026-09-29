@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { navigate } from '../../app/router';
 import { SURPRISE_THINKING } from '../../content/dateOptions';
-import { filterIdeas, pickIdea, randomPool } from '../../domain/dateNight';
+import { activeFilterCount, EMPTY_FILTERS, filterIdeas, pickIdea, randomPool, recentToAvoid } from '../../features/dates/service';
+import { setFilters } from '../../store/uiState';
 import { todayKey } from '../../domain/time';
 import type { DateIdea } from '../../models/types';
 import { markShown, planDate } from '../../store/actions';
-import { selectDateLibrary } from '../../store/selectors';
 import { dispatch, store } from '../../store/store';
 import { Button } from '../../ui/controls';
 import { EmptyState, ScreenHeader } from '../../ui/display';
@@ -20,13 +20,17 @@ export function SurpriseScreen() {
   const [phase, setPhase] = useState<'thinking' | 'reveal' | 'empty'>('thinking');
   const [step, setStep] = useState(0);
   const [idea, setIdea] = useState<DateIdea | null>(null);
+  const [filtered, setFiltered] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const roll = useCallback(() => {
     timers.current.forEach(clearTimeout);
     const s = store.getState();
-    const pool = randomPool(filterIdeas(selectDateLibrary(), { settings: s.settings }), s.settings.randomIngredients);
-    const pick = pickIdea(pool, s.dates.recent, { exclude: idea?.id });
+    // Solo citas que existen en la biblioteca, con los filtros elegidos (si hay).
+    const pool = randomPool(filterIdeas(s.dateIdeas, { filters: s.dates.filters, settings: s.settings }), s.settings.randomIngredients);
+    const avoid = recentToAvoid(s.dates.recent, s.settings.avoidRepeatDays, Date.now());
+    const pick = pickIdea(pool, avoid, { exclude: idea?.id });
+    setFiltered(activeFilterCount(s.dates.filters) > 0);
     if (!pick) {
       setPhase('empty');
       return;
@@ -85,11 +89,19 @@ export function SurpriseScreen() {
         </>
       )}
 
+      {phase === 'reveal' && filtered && (
+        <p className="tiny muted center">Elegida entre las citas que cumplen sus filtros.</p>
+      )}
+
       {phase === 'empty' && (
-        <EmptyState emoji="🫧" title="Nada que sortear">
+        <EmptyState emoji="🫧" title={filtered ? 'Ninguna cita coincide' : 'Nada que sortear todavía'}>
           <div className="stack" style={{ alignItems: 'center', marginTop: 8 }}>
-            Activen más opciones en su Random.
-            <Button variant="soft" size="sm" onClick={() => navigate('/citas/random')}>Configurar Random</Button>
+            {filtered ? 'Ninguna de sus citas cumple estos filtros.' : 'Agreguen citas a su biblioteca o revisen su Random.'}
+            {filtered ? (
+              <Button variant="soft" size="sm" onClick={() => { setFilters(EMPTY_FILTERS); roll(); }}>Quitar filtros</Button>
+            ) : (
+              <Button variant="soft" size="sm" onClick={() => navigate('/citas/nueva')}>+ Agregar cita</Button>
+            )}
           </div>
         </EmptyState>
       )}

@@ -3,7 +3,7 @@ import { HomeScreen } from '../screens/home/HomeScreen';
 import { IntimacyScreen } from '../screens/intimacy/IntimacyScreen';
 import { DatesRouter } from '../screens/dates/DatesRouter';
 import { UsScreen } from '../screens/us/UsScreen';
-import { SettingsScreen } from '../screens/settings/SettingsScreen';
+import { SettingsRouter } from '../screens/settings/SettingsRouter';
 import { FxLayer } from '../ui/FxLayer';
 import { useRoute, type TabId } from './router';
 import { TabBar } from './TabBar';
@@ -17,7 +17,7 @@ export function App() {
   // Cada cambio de pantalla empieza arriba.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
-  }, [route.path]);
+  }, [route.key]);
 
   let screen: ReactNode;
   switch (route.tab) {
@@ -31,7 +31,7 @@ export function App() {
       screen = <UsScreen />;
       break;
     case 'settings':
-      screen = <SettingsScreen />;
+      screen = <SettingsRouter route={route} />;
       break;
     default:
       screen = <HomeScreen />;
@@ -39,7 +39,7 @@ export function App() {
 
   return (
     <div className="app-frame" data-section={SECTION[route.tab]}>
-      <main ref={scrollRef} className="screen" key={route.path}>
+      <main ref={scrollRef} className="screen" key={route.key}>
         {screen}
       </main>
       <TabBar active={route.tab} />

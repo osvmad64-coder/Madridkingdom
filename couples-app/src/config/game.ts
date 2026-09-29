@@ -37,12 +37,33 @@ export const gameConfig = {
   },
 
   challenges: {
+    /** Puntos sugeridos al crear un reto nuevo. */
+    defaultPoints: 150,
+    /** Opciones rápidas de recompensa en el editor (también se puede escribir otra). */
+    pointOptions: [50, 100, 150, 200, 300],
     /** Porcentaje máximo de días del mes con reto (0.3 = 30%). */
     maxDaysRatio: 0.3,
     /** Porcentaje mínimo, para que siempre haya algo que hacer. */
     minDaysRatio: 0.15,
     /** Permite completar retos de días pasados del mes. */
     allowPastCompletion: true,
+  },
+
+  positions: {
+    /** Valor inicial de "positionFrequency" (editable en Ajustes → Posiciones). */
+    defaultFrequency: 0.3,
+    /** Opciones de frecuencia que ofrece la app. */
+    frequencyOptions: [0, 0.15, 0.3, 0.5, 0.75],
+    defaultPoints: 100,
+    pointOptions: [50, 100, 150, 200],
+  },
+
+  dateNight: {
+    /** Cuántas elecciones recientes recuerda Sorpréndenos para no repetir. */
+    recentWindow: 5,
+    /** Valor inicial de "evitar repetir durante X días" (0 = solo no repetir seguidas). */
+    defaultAvoidRepeatDays: 0,
+    pointOptions: [50, 100, 150, 200, 300],
   },
 } as const;
 

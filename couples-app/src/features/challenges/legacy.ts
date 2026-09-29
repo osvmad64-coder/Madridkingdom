@@ -1,12 +1,10 @@
-import type { Challenge } from '../models/types';
-
 /**
- * Retos de demostración (pack "base").
- * Para agregar packs propios o privados: crear otro archivo/array con `pack`
- * distinto y activarlo en Ajustes → enabledChallengePacks. Los retos creados
- * desde la app se guardan en `customChallenges` (pack "custom").
+ * Retos genéricos de la fase 1. Ya no forman parte de la biblioteca: solo se
+ * usan al migrar datos antiguos para conservar el historial de retos completados.
  */
-export const BASE_CHALLENGES: Challenge[] = [
+type LegacyChallenge = { id: string; title: string; description: string; type: import('../../models/types').ChallengeType; reward: { points: number }; emoji: string; [k: string]: unknown };
+
+export const LEGACY_CHALLENGES: LegacyChallenge[] = [
   {
     id: 'ch-love-note',
     title: 'Notita escondida',

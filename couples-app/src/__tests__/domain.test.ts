@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { summarizeStreaks, crossedMilestones } from '../domain/streaks';
-import { generateMonthSchedule } from '../domain/challenges';
-import { BASE_CHALLENGES } from '../content/challenges';
-import { DATE_LIBRARY } from '../content/dateIdeas';
-import { EMPTY_FILTERS, filterIdeas, pickIdea, randomPool } from '../domain/dateNight';
+import { generateMonthSchedule, allAssignments } from '../features/challenges/service';
+import { seedChallenges } from '../features/challenges/seed';
+import { demoDateIdeas } from '../content/demo/dateIdeas';
+import { EMPTY_FILTERS, filterIdeas, ideaIngredients, pickIdea, randomPool } from '../features/dates/service';
 import { createInitialState } from '../store/initialState';
-import { applyAchievements, completeChallenge, ensureMonthSchedule, makeCtx, registerHeart, removeHeartsForDay, type Action } from '../store/actions';
+import { applyAchievements, completeChallenge, ensureChallengeMonth as ensureMonthSchedule, makeCtx, registerHeart, removeHeartsForDay, type Action } from '../store/actions';
 import { selectStreaks, selectTotalPoints } from '../store/selectors';
 import { gameConfig } from '../config/game';
 import { buildDemoState } from '../store/demo';
 import { computePeriodStats, bestPeriod } from '../domain/stats';
-import { allAssignments } from '../domain/challenges';
 
 const at = (day: string) => new Date(`${day}T20:00:00`).getTime();
 
@@ -28,16 +27,20 @@ describe('rachas', () => {
 });
 
 describe('retos', () => {
-  it('nunca supera el porcentaje máximo del mes', () => {
+  const BASE_CHALLENGES = seedChallenges(0);
+  it('nunca supera el porcentaje máximo del mes y no repite seguido', () => {
     for (let seed = 1; seed < 50; seed++) {
       const s = generateMonthSchedule('2026-09', BASE_CHALLENGES, seed);
+      const ids = Object.keys(s).sort().map((d) => s[d].challengeId);
+      ids.forEach((id, i) => i && expect(id).not.toBe(ids[i - 1]));
       expect(Object.keys(s).length).toBeLessThanOrEqual(Math.floor(30 * gameConfig.challenges.maxDaysRatio));
       expect(Object.keys(s).length).toBeGreaterThan(0);
     }
   });
-  it('incluye fechas especiales fijas', () => {
-    const s = generateMonthSchedule('2027-02', BASE_CHALLENGES, 7);
-    expect(s['2027-02-14']?.challengeId).toBe('ch-valentine');
+  it('incluye fechas especiales fijas (reservado)', () => {
+    const special = { ...BASE_CHALLENGES[0], id: 'vday', fixedDate: '02-14' };
+    const s = generateMonthSchedule('2027-02', [...BASE_CHALLENGES, special], 7);
+    expect(s['2027-02-14']?.challengeId).toBe('vday');
   });
 });
 
@@ -82,6 +85,7 @@ describe('acciones', () => {
 
 describe('date night', () => {
   const settings = createInitialState().settings;
+  const DATE_LIBRARY = demoDateIdeas(0);
   it('filtra por varios grupos', () => {
     const res = filterIdeas(DATE_LIBRARY, { settings, filters: { ...EMPTY_FILTERS, budget: ['free'], location: ['home'] } });
     expect(res.length).toBeGreaterThan(0);
@@ -92,9 +96,10 @@ describe('date night', () => {
     for (const k of Object.keys(only) as (keyof typeof only)[]) only[k] = false;
     only.cinema = true;
     const pool = randomPool(DATE_LIBRARY, only);
-    expect(pool.every((i) => i.ingredients.includes('cinema'))).toBe(true);
+    expect(pool.length).toBeGreaterThan(0);
+    expect(pool.every((i) => { const g = ideaIngredients(i); return !g.length || g.includes('cinema'); })).toBe(true);
     const all = randomPool(DATE_LIBRARY, settings.randomIngredients);
-    const recent = all.slice(1).map((i) => i.id);
+    const recent = all.slice(1).map((i: { id: string }) => i.id);
     expect(pickIdea(all, recent)?.id).toBe(all[0].id);
   });
 });

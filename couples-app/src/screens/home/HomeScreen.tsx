@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { DAILY_MESSAGES } from '../../content/messages';
-import { findIdea, plannedLogs } from '../../domain/dateNight';
+import { findIdea, plannedLogs } from '../../features/dates/service';
+import { positionAssignment } from '../../features/positions/service';
 import { pointsInRange } from '../../domain/points';
 import { hashString } from '../../domain/random';
 import { nextMilestone, previousMilestoneDays } from '../../domain/streaks';
 import { dayLabel, monthKeyOf, shortDayLabel, startOfWeek, todayKey } from '../../domain/time';
 import { navigate } from '../../app/router';
-import { ensureMonthSchedule, registerHeart } from '../../store/actions';
+import { ensureCalendarMonth, registerHeart } from '../../store/actions';
 import {
   selectDateLibrary,
   selectHeartsByDay,
@@ -17,14 +18,14 @@ import {
 import { dispatch, useAppState } from '../../store/store';
 import { Button } from '../../ui/controls';
 import { AnimatedNumber, AvatarPair, EmptyState, ProgressBar, SectionHead, formatNumber } from '../../ui/display';
-import { ChallengeCard } from '../intimacy/ChallengeCard';
+import { ChallengeCard } from '../../features/challenges/ui/ChallengeCard';
 import { greeting, streakLine } from './copy';
 
 export function HomeScreen() {
   const s = useAppState();
   const today = todayKey();
   useEffect(() => {
-    dispatch(ensureMonthSchedule(monthKeyOf(today)));
+    dispatch(ensureCalendarMonth(monthKeyOf(today)));
   }, [today]);
 
   const streak = selectStreaks(s, today);
@@ -34,9 +35,10 @@ export function HomeScreen() {
   const next = nextMilestone(streak.current);
   const prevMilestone = previousMilestoneDays(streak.current);
   const assignment = s.challengeSchedule[monthKeyOf(today)]?.[today];
+  const todayPosition = positionAssignment(s, today);
   const message = s.profile.message?.trim() || DAILY_MESSAGES[hashString(today) % DAILY_MESSAGES.length];
   const upcoming = plannedLogs(s.dates.logs)[0];
-  const upcomingIdea = upcoming && findIdea(selectDateLibrary(), upcoming.ideaId);
+  const upcomingIdea = upcoming && findIdea(selectDateLibrary(s), upcoming.ideaId);
   const activity = selectRecentActivity(s);
   const [p1, p2] = s.profile.partners;
 
@@ -96,6 +98,16 @@ export function HomeScreen() {
       </div>
 
       {assignment && <ChallengeCard assignment={assignment} today={today} compact />}
+      {todayPosition && (
+        <button type="button" className="card card--tap card--sm row home-position" onClick={() => navigate('/intimidad')}>
+          <span className="list-row__icon" data-tone="coral">💋</span>
+          <div className="grow">
+            <p className="eyebrow">Bonus de hoy</p>
+            <p style={{ fontWeight: 700 }}>{todayPosition.status === 'completed' ? 'Posición especial completada ✓' : 'Hoy hay posición especial'}</p>
+          </div>
+          <span className="badge badge--gold">+{formatNumber(todayPosition.snapshot.points)}</span>
+        </button>
+      )}
 
       {/* Sorpréndenos */}
       <button type="button" className="home-surprise card--tap" onClick={() => navigate('/citas/sorpresa')}>
@@ -151,6 +163,7 @@ const ACTIVITY_ICON = {
   heart: '❤️',
   streak: '🔥',
   challenge: '🎯',
+  position: '💋',
   date: '💕',
   achievement: '🏆',
   bonus: '✨',

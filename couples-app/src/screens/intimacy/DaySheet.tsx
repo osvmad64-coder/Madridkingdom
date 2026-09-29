@@ -10,7 +10,9 @@ import { Button } from '../../ui/controls';
 import { formatNumber } from '../../ui/display';
 import { Icon } from '../../ui/Icon';
 import { Sheet } from '../../ui/overlays';
-import { ChallengeCard } from './ChallengeCard';
+import { ChallengeCard } from '../../features/challenges/ui/ChallengeCard';
+import { positionAssignment } from '../../features/positions/service';
+import { PositionDetail } from '../../features/positions/ui/PositionDetail';
 
 /** Hoja inferior al tocar un día del calendario. */
 export function DaySheet({ day, today, onClose }: { day: DayKey | null; today: DayKey; onClose: () => void }) {
@@ -25,7 +27,9 @@ function DayContent({ day, today }: { day: DayKey; today: DayKey }) {
   const s = useAppState();
   const hearts = selectHeartsByDay(s).get(day) ?? [];
   const assignment = selectAssignment(s, day);
+  const position = positionAssignment(s, day);
   const dayPoints = pointsInRange(s.ledger, day, day);
+  const dayEvents = s.ledger.filter((e) => e.day === day);
   const future = day > today;
   const [note, setNote] = useState(s.dayNotes[day] ?? '');
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -95,11 +99,39 @@ function DayContent({ day, today }: { day: DayKey; today: DayKey }) {
           ))}
       </div>
 
-      {assignment && <ChallengeCard assignment={assignment} today={today} />}
+      {assignment && (
+        <div className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
+          <p className="eyebrow">🎯 Reto del día</p>
+          <ChallengeCard assignment={assignment} today={today} />
+        </div>
+      )}
+
+      {position && (
+        <div className="stack" style={{ '--gap': '8px' } as React.CSSProperties}>
+          <p className="eyebrow">💋 Posición especial</p>
+          <PositionDetail assignment={position} today={today} />
+        </div>
+      )}
+
+      {dayEvents.length > 0 && (
+        <div className="card card--flat day-points">
+          <p className="eyebrow">⭐ Puntos obtenidos</p>
+          {dayEvents.map((e) => (
+            <div key={e.id} className="row between small">
+              <span className="muted">{e.label}</span>
+              <span className="num" style={{ fontWeight: 700 }}>+{formatNumber(e.amount)}</span>
+            </div>
+          ))}
+          <div className="row between day-points__total">
+            <span>Total del día</span>
+            <span className="num">⭐ {formatNumber(dayPoints)}</span>
+          </div>
+        </div>
+      )}
 
       {/* Nota */}
       <div className="field">
-        <label htmlFor="day-note">📝 Nota (opcional)</label>
+        <label htmlFor="day-note">📝 Nota privada (opcional)</label>
         <textarea
           id="day-note"
           className="input"

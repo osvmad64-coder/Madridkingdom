@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { ChallengeAssignment, DayKey, HeartEntry, MonthKey } from '../../models/types';
+import type { ChallengeAssignment, DayKey, HeartEntry, MonthKey, PositionAssignment } from '../../models/types';
 import { monthDays, monthLabel, WEEKDAYS_SHORT, weekdayIndex } from '../../domain/time';
 import { Icon } from '../../ui/Icon';
 import { haptic } from '../../ui/haptics';
@@ -11,12 +11,13 @@ interface Props {
   today: DayKey;
   heartsByDay: Map<DayKey, HeartEntry[]>;
   challenges: Record<DayKey, ChallengeAssignment>;
+  positions: Record<DayKey, PositionAssignment>;
   notes: Record<DayKey, string>;
   onSelect: (day: DayKey) => void;
   onMonthChange: (delta: number) => void;
 }
 
-export function Calendar({ month, today, heartsByDay, challenges, notes, onSelect, onMonthChange }: Props) {
+export function Calendar({ month, today, heartsByDay, challenges, positions, notes, onSelect, onMonthChange }: Props) {
   const days = monthDays(month);
   const lead = weekdayIndex(days[0]);
   const touch = useRef<{ x: number; y: number } | null>(null);
@@ -54,6 +55,7 @@ export function Calendar({ month, today, heartsByDay, challenges, notes, onSelec
         {days.map((day) => {
           const hearts = heartsByDay.get(day)?.length ?? 0;
           const ch = challenges[day];
+          const pos = positions[day];
           const isToday = day === today;
           const future = day > today;
           const cls = [
@@ -71,7 +73,7 @@ export function Calendar({ month, today, heartsByDay, challenges, notes, onSelec
               key={day}
               type="button"
               className={cls}
-              aria-label={`${Number(day.slice(8))}${hearts ? ', con corazón' : ''}${ch ? ', con reto' : ''}`}
+              aria-label={`${Number(day.slice(8))}${hearts ? ', con corazón' : ''}${ch ? ', con reto' : ''}${pos ? ', con posición especial' : ''}`}
               onClick={() => {
                 haptic();
                 onSelect(day);
@@ -86,6 +88,7 @@ export function Calendar({ month, today, heartsByDay, challenges, notes, onSelec
               )}
               <span className="cal-day__marks" aria-hidden="true">
                 {ch && <i className="mark-challenge" />}
+                {pos && <i className={`mark-position ${pos.status === 'completed' ? 'is-done' : ''}`} />}
                 {notes[day] && <i className="mark-note" />}
               </span>
             </button>
@@ -95,6 +98,7 @@ export function Calendar({ month, today, heartsByDay, challenges, notes, onSelec
       <div className="calendar__legend tiny muted">
         <span><i className="legend-heart" /> registrado</span>
         <span><i className="mark-challenge" /> reto</span>
+        <span><i className="mark-position" /> posición</span>
         <span><i className="mark-note" /> nota</span>
       </div>
     </section>

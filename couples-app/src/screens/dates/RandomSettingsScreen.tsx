@@ -1,8 +1,7 @@
 import { navigate } from '../../app/router';
 import { RANDOM_INGREDIENTS } from '../../content/dateOptions';
-import { filterIdeas, randomPool } from '../../domain/dateNight';
+import { filterIdeas, randomPool } from '../../features/dates/service';
 import { toggleIngredient } from '../../store/actions';
-import { selectDateLibrary } from '../../store/selectors';
 import { dispatch, useAppState } from '../../store/store';
 import { Button } from '../../ui/controls';
 import { ScreenHeader } from '../../ui/display';
@@ -13,7 +12,7 @@ import { haptic } from '../../ui/haptics';
 export function RandomSettingsScreen() {
   const s = useAppState();
   const ing = s.settings.randomIngredients;
-  const pool = randomPool(filterIdeas(selectDateLibrary(), { settings: s.settings }), ing);
+  const pool = randomPool(filterIdeas(s.dateIdeas, { settings: s.settings }), ing);
 
   return (
     <div className="stack" style={{ '--gap': '18px' } as React.CSSProperties}>

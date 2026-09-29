@@ -1,13 +1,11 @@
 import { ACHIEVEMENTS } from '../content/achievements';
-import { BASE_CHALLENGES } from '../content/challenges';
-import { DATE_LIBRARY } from '../content/dateIdeas';
 import type { Metrics } from '../domain/achievements';
-import { availableChallenges, completedAssignments } from '../domain/challenges';
 import { summarizeStreaks } from '../domain/streaks';
 import { totalPoints } from '../domain/points';
-import { doneLogs } from '../domain/dateNight';
-import type { AppState, Challenge, DayKey, HeartEntry } from '../models/types';
 import { todayKey } from '../domain/time';
+import { completedAssignments } from '../features/challenges/service';
+import { doneLogs } from '../features/dates/service';
+import type { AppState, DayKey, HeartEntry } from '../models/types';
 
 /**
  * Selectores: datos derivados del estado. Se memorizan por referencia
@@ -48,19 +46,6 @@ const streakMemo = memo((s) => {
   };
 });
 
-export const selectAllChallenges = memo((s): Challenge[] => [
-  ...BASE_CHALLENGES,
-  ...s.customChallenges,
-]);
-
-export const selectChallengePool = memo((s) =>
-  availableChallenges(selectAllChallenges(s), s.settings.enabledChallengePacks),
-);
-
-export function findChallenge(s: AppState, id: string) {
-  return selectAllChallenges(s).find((c) => c.id === id);
-}
-
 export function selectAssignment(s: AppState, day: DayKey) {
   return s.challengeSchedule[day.slice(0, 7)]?.[day];
 }
@@ -78,5 +63,6 @@ export const selectRecentActivity = memo((s) =>
   [...s.ledger].sort((a, b) => b.createdAt - a.createdAt).slice(0, 6),
 );
 
-export const selectDateLibrary = () => DATE_LIBRARY;
+/** La biblioteca de citas es la del estado (creada por la pareja). */
+export const selectDateLibrary = (s: AppState) => s.dateIdeas;
 export const selectAchievements = () => ACHIEVEMENTS;

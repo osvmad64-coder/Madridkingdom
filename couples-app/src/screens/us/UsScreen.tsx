@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { evaluateAchievements } from '../../domain/achievements';
-import { allAssignments } from '../../domain/challenges';
+import { allAssignments } from '../../features/challenges/service';
 import { bestPeriod, compare, computePeriodStats, type Comparison, type Period, type Range } from '../../domain/stats';
 import { shortDayLabel, todayKey, monthLabel } from '../../domain/time';
 import { selectAchievements, selectHeartDays, selectMetrics, selectStreaks, selectTotalPoints } from '../../store/selectors';
