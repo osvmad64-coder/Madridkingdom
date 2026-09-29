@@ -82,6 +82,8 @@
   .map-card{padding:8px;}
   #mapSvg{width:100%; height:auto; display:block; border-radius:4px;}
   #mapSvg.tall{ margin:0 auto; }
+  .sp-info{ border-left:3px solid #e6c765; padding-left:8px; }
+  .sp-info small{ opacity:.85; }
   .terr{cursor:pointer;}
 
   .menu-tabs{ display:flex; gap:6px; flex-wrap:wrap; justify-content:center; margin:14px 0 16px; }
@@ -1794,7 +1796,7 @@ function loseUnits(t, n){
 function recruitShields(territoryId, amount){
   if(mpIntercept('recruitShields', arguments)) return;
   if(!unitsOn()) return;
-  const t=byId(territoryId), cost=shieldCost()*amount;
+  const t=byId(territoryId), cost=marketPrice(shieldCost()*amount);
   if(!t || t.owner!=='player' || amount<1 || S.player.gold<cost || shieldsOf(t)+amount>SHIELD_CAP) return;
   S.player.gold-=cost; t.shields=shieldsOf(t)+amount;
   addLog(`🛡️ Reclutas ${amount} escudero(s) en ${t.name} (${cost} oro).`);
@@ -1838,6 +1840,88 @@ function fireCannon(fromId, toId){
   render();
 }
 
+// ================= TERRITORIOS ESPECIALES (capa extra sobre el mapa; solo partidas multijugador) =================
+// Se guardan en el propio territorio (t.special, t.specialReady) y viajan en el estado de la partida: el servidor
+// (o el teléfono en "Mismo teléfono") es quien decide dónde están y aplica sus efectos.
+const SPECIAL_MINE_GOLD = 8, SPECIAL_FORT_DEF = 0.15, SPECIAL_MARKET_OFF = 0.15, SPECIAL_MARKET_MAX = 0.25,
+      SPECIAL_SHRINE_MANA = 2, SPECIAL_RUINS_MIN = 25, SPECIAL_RUINS_MAX = 45, SPECIAL_RUINS_CD = 3;
+const SPECIALS = {
+  mina:      { icon:'🪙', name:'Mina de Oro', power:true,  short:`+${SPECIAL_MINE_GOLD} oro/turno`, desc:`Su dueño recibe +${SPECIAL_MINE_GOLD} de oro al inicio de su turno.` },
+  fortaleza: { icon:'🏰', name:'Fortaleza',   power:true,  short:`+${Math.round(SPECIAL_FORT_DEF*100)}% defensa`, desc:`Se defiende con +${Math.round(SPECIAL_FORT_DEF*100)}% de poder mientras tenga dueño.` },
+  mercado:   { icon:'🛒', name:'Mercado',     power:true,  short:`-${Math.round(SPECIAL_MARKET_OFF*100)}% tropas`, desc:`Su dueño paga ${Math.round(SPECIAL_MARKET_OFF*100)}% menos al reclutar gladiadores y escuderos (máx. -${Math.round(SPECIAL_MARKET_MAX*100)}% con varios mercados).` },
+  santuario: { icon:'🔮', name:'Santuario',   power:false, short:`+${SPECIAL_SHRINE_MANA} maná/turno`, desc:`Su dueño recupera +${SPECIAL_SHRINE_MANA} de maná al inicio de su turno.` },
+  ruinas:    { icon:'🏛️', name:'Ruinas',      power:false, short:`Botín ${SPECIAL_RUINS_MIN}–${SPECIAL_RUINS_MAX} oro`, desc:`Quien las conquista encuentra ${SPECIAL_RUINS_MIN}–${SPECIAL_RUINS_MAX} de oro; después se agotan ${SPECIAL_RUINS_CD} rondas.` },
+};
+function specialOf(t){ return t && t.special ? SPECIALS[t.special] : null; }
+function ownedSpecials(owner, key){ return S.territories.filter(t=>t.owner===owner && t.special===key).length; }
+function fortressMult(t){ return (t && t.special==='fortaleza' && t.owner!=='neutral') ? 1+SPECIAL_FORT_DEF : 1; }
+// Precio con descuento de Mercado: nunca menos de 1 ni más barato por comprar de uno en uno (se redondea hacia abajo).
+function marketPrice(total){
+  const n = S && S.territories ? ownedSpecials('player','mercado') : 0;
+  if(!n || total<=1) return total;
+  return Math.max(1, total - Math.floor(total*Math.min(SPECIAL_MARKET_MAX, n*SPECIAL_MARKET_OFF) + 1e-9));
+}
+function ruinsTurnsLeft(t){ return Math.max(0, (t.specialReady||0) - S.turn); }
+// Recompensa de Ruinas: solo al conquistarlas (ataque u Odilio del jugador, o ataque de la IA), nunca al dibujar.
+function specialOnConquest(t, owner){
+  if(!t || t.special!=='ruinas' || owner==='neutral' || ruinsTurnsLeft(t)>0) return;
+  const gold = SPECIAL_RUINS_MIN + Math.floor(Math.random()*(SPECIAL_RUINS_MAX-SPECIAL_RUINS_MIN+1));
+  t.specialReady = S.turn + SPECIAL_RUINS_CD;
+  if(owner==='player'){ S.player.gold += gold; addLog(`🏛️ Exploras las Ruinas de ${t.name}: +${gold} de oro.`); notify('🏛️', `¡Tesoro en las Ruinas de ${t.name}! +${gold} de oro.`, 'good'); }
+  else { S.aiGold[owner] = (S.aiGold[owner]||0) + gold; addLog(`🏛️ ${nameOf(owner)} saquea las Ruinas de ${t.name}.`); }
+}
+// Reparto al crear la partida (entre ~25% y 35% del mapa): cerca del centro disputado o en las orillas, lejos de
+// las tierras iniciales, sin juntar Mina/Fortaleza/Mercado y con un valor parecido en la zona de cada reino.
+function placeSpecials(rnd){
+  const T = S.territories, n = T.length, ix = {}; T.forEach((t,i)=>{ ix[t.id]=i; });
+  const adj = Array.from({length:n},()=>[]); S.edges.forEach(([a,b])=>{ adj[ix[a]].push(ix[b]); adj[ix[b]].push(ix[a]); });
+  const D = cmAllDist(n, adj);
+  const kingdoms = [...new Set(T.filter(t=>t.owner!=='neutral').map(t=>t.owner))];
+  const spawn = kingdoms.map(k=>T.map((t,i)=>t.owner===k?i:-1).filter(i=>i>=0));
+  const dk = v=>spawn.map(sp=>Math.min(...sp.map(s=>D[s][v]).filter(d=>d>=0)));
+  const W = S.mapW||960, H = S.mapH||600;
+  const free = T.map((t,i)=>i).filter(i=>T[i].owner==='neutral' && !T[i].isBoss && !T[i].castle);
+  let cand = free.filter(i=>Math.min(...dk(i))>=2);                       // lejos de las tierras iniciales
+  if(cand.length < Math.round(n*0.2)) cand = free.filter(i=>Math.min(...dk(i))>=1); // mapas chicos con muchos reinos
+  const zoneOf = v=>{ const d=dk(v), m=Math.min(...d), w=d.map((x,k)=>x===m?k:-1).filter(k=>k>=0); return w.length===1 ? w[0] : -1; };
+  const contested = v=>{ const d=dk(v).slice().sort((a,b)=>a-b); return d.length<2 || d[1]-d[0]<=1; };
+  const rim = v=>Math.max(Math.abs(T[v].x-W/2)/(W/2-40), Math.abs(T[v].y-H/2)/(H/2-40)) >= 0.68;
+  const total = Math.min(cand.length, Math.max(3, Math.round(n*(0.25+rnd()*0.10))));
+  const keys = Object.keys(SPECIALS), types = [];
+  for(let i=0;i<total;i++) types.push(keys[i%keys.length]);
+  types.sort((a,b)=>(SPECIALS[b].power?1:0)-(SPECIALS[a].power?1:0) || rnd()-0.5);
+  const val = k=>SPECIALS[k].power?2:1;
+  let best=null, bestSpread=1e9;
+  for(let attempt=0; attempt<25; attempt++){
+    const pick = {}, score = kingdoms.map(()=>0);
+    for(const type of types){
+      const opts = cand.filter(v=>pick[v]===undefined && !adj[v].some(u=>pick[u] && (SPECIALS[pick[u]].power && SPECIALS[type].power)));
+      if(!opts.length) continue;
+      const rate = v=>{
+        const z = zoneOf(v); let r = rnd()*1.5;
+        if(contested(v)) r += 3; if(rim(v)) r += 2;
+        if(z>=0) r -= (score[z]-Math.min(...score))*1.5;
+        const near = Object.keys(pick).map(Number).filter(u=>D[u][v]>=0 && D[u][v]<=1).length; r -= near*2.5;
+        return r;
+      };
+      const v = opts.map(v=>[v, rate(v)]).sort((a,b)=>b[1]-a[1])[0][0];
+      pick[v] = type; const z = zoneOf(v); if(z>=0) score[z] += val(type);
+    }
+    // Si una zona quedó más rica, se quitan sus especiales sobrantes (mejor menos especiales que una ventaja injusta).
+    const zoneScore = ()=>{ const sc=kingdoms.map(()=>0); Object.entries(pick).forEach(([v,k])=>{ const z=zoneOf(+v); if(z>=0) sc[z]+=val(k); }); return sc; };
+    for(let g=0; g<20 && kingdoms.length>1; g++){
+      const sc=zoneScore(); if(Math.max(...sc)-Math.min(...sc)<=1) break;
+      const rich=sc.indexOf(Math.max(...sc)); const drop=Object.keys(pick).map(Number).filter(v=>zoneOf(v)===rich).sort((a,b)=>val(pick[a])-val(pick[b]))[0];
+      if(drop===undefined) break; delete pick[drop];
+    }
+    const sc=zoneScore(), spread = kingdoms.length>1 ? Math.max(...sc)-Math.min(...sc) : 0, size=Object.keys(pick).length;
+    const key = spread*100 - size;
+    if(key<bestSpread){ bestSpread=key; best=pick; }
+    if(spread<=1 && size>=Math.round(total*0.8)) break;
+  }
+  Object.entries(best||{}).forEach(([v,k])=>{ T[+v].special=k; if(k==='ruinas') T[+v].specialReady=0; });
+}
+
 function minAttackTroops(){ return S.mpLocal ? 3 : 2; }
 function defenseMult(){ return S.mpLocal ? 1.3 : 1.1; }
 function defenseFlat(owner){ return owner!=='neutral' ? (S.mpLocal ? 3 : 2) : (S.mpLocal ? 1 : 0); }
@@ -1871,12 +1955,13 @@ function incomeBreakdown(){
     const counts = S.factions.filter(f=>f.human || f.isPlayer).map(f=>ownerTerritories(f.id).length);
     if(counts.length && Math.max(...counts) - lands >= 3) underdog = 6;
   }
-  let total = base + landGold + tree + passive + underdog;
+  const special = S.mp ? ownedSpecials('player','mina')*SPECIAL_MINE_GOLD : 0;
+  let total = base + landGold + tree + passive + underdog + special;
   if(S.modIncomeMult) total = Math.round(total*S.modIncomeMult);
   if(S.modGoldBoost) total = Math.round(total*S.modGoldBoost);
   const buff = S.player.buffs.goldMultTurns>0;
   if(buff) total = Math.round(total*S.player.buffs.goldMultValue);
-  return { base, perLand, lands, landGold, tree, passive, underdog, buff, total };
+  return { base, perLand, lands, landGold, tree, passive, underdog, special, buff, total };
 }
 function beginPlayerTurn(first){
   if(!first){ S.turn++; }
@@ -1889,7 +1974,7 @@ function beginPlayerTurn(first){
     if(t.troops<MAX_TROOPS) t.troops=Math.min(MAX_TROOPS, t.troops+inc);
   });
 
-  const manaRegen = CLASSES[S.player.cls].manaRegen + (S.player.manaRegenBonus||0) + passiveSum('mana');
+  const manaRegen = CLASSES[S.player.cls].manaRegen + (S.player.manaRegenBonus||0) + passiveSum('mana') + (S.mp ? ownedSpecials('player','santuario')*SPECIAL_SHRINE_MANA : 0);
   S.player.mana = Math.min(S.player.maxMana, S.player.mana+manaRegen);
 
   S.ap = maxAp();
@@ -1902,7 +1987,7 @@ function beginPlayerTurn(first){
 
   addLog(`— Turno ${S.turn}: recibes ${income} de oro por tus tierras. —`);
   if(!first){
-    notify('💰', S.mpLocal ? `Turno ${S.turn}: +${income} de oro · tus ${inc.lands} tierras dieron +${inc.landGold}${inc.passive?`, terrenos +${inc.passive}`:''}${inc.underdog?`, resistencia del pueblo +${inc.underdog}`:''}, base +${inc.base}.` : `Turno ${S.turn}: recibes ${income} de oro por tus tierras.`, 'info');
+    notify('💰', S.mpLocal ? `Turno ${S.turn}: +${income} de oro · tus ${inc.lands} tierras dieron +${inc.landGold}${inc.passive?`, terrenos +${inc.passive}`:''}${inc.underdog?`, resistencia del pueblo +${inc.underdog}`:''}${inc.special?`, minas +${inc.special}`:''}, base +${inc.base}.` : `Turno ${S.turn}: recibes ${income} de oro por tus tierras.`, 'info');
     if(S.player.skillPoints>0){
       notify('📈', `Tienes ${S.player.skillPoints} punto(s) de mejora sin usar. Ve a "Mejorar".`, 'info');
     }
@@ -1974,7 +2059,7 @@ function playerAttack(fromId,toId,attackKey){
   if(odilioActive() && S.player.buffs.odilioCrit>0 && Math.random()<S.player.buffs.odilioCrit){ attackPower*=1.6; addLog('💥 ¡Golpe crítico de la Danza de Mil Filos!'); notify('💥','¡GOLPE CRÍTICO!','unlock'); }
   const defenderBonus = defenseFlat(to.owner);
   const terrainDef = to.biome.passiveType==='defensa' ? to.biome.passiveValue : 0;
-  const defensePower = combatRoll(defenseForce(to)*defenseMult() + defenderBonus + terrainDef + castleBonus(to));
+  const defensePower = combatRoll((defenseForce(to)*defenseMult() + defenderBonus + terrainDef + castleBonus(to)) * fortressMult(to));
 
   if(S.player.buffs.atkBonusUses>0) S.player.buffs.atkBonusUses--;
 
@@ -1990,6 +2075,7 @@ function playerAttack(fromId,toId,attackKey){
     gainGold = Math.round(gainGold * (S.player.traitGoldMult||1) * (S.player.treeGoldMult||1));
     S.player.gold += gainGold;
     to.owner='player'; to.tier= wasBoss? to.tier : 1; to.troops=Math.max(1, moved-1); to.shields=0; to.cannon=false;
+    specialOnConquest(to, 'player');
     if(from.troops<=1 && shieldsOf(from)>0) from.shields=shieldsOf(from)-1;
     from.troops = Math.max(1, from.troops - moved);
     let xpGain = 4 + Math.round(to.troops) + (wasBoss?15:0);
@@ -2088,10 +2174,11 @@ function odilioStrike(id1, id2){
     const base = attackForce(src)*def.mult + (p[def.stat]||0)*def.statK + weaponBonus() + def.flat;
     let atk = combatRoll(base); if(def.best2) atk = Math.max(atk, combatRoll(base));
     const terrain = tg.biome.passiveType==='defensa' ? tg.biome.passiveValue : 0;
-    const dfn = combatRoll(defenseForce(tg)*defenseMult() + defenseFlat(tg.owner) + terrain + castleBonus(tg));
+    const dfn = combatRoll((defenseForce(tg)*defenseMult() + defenseFlat(tg.owner) + terrain + castleBonus(tg)) * fortressMult(tg));
     if(atk>dfn){
       const moved = Math.max(1, Math.floor(src.troops*0.4));
       tg.owner='player'; tg.tier = tg.isBoss ? tg.tier : 1; tg.troops = moved; tg.shields=0; tg.cannon=false; src.troops = Math.max(1, src.troops-moved);
+      specialOnConquest(tg, 'player');
       p.gold += 2 + (S.mpLocal?3:0);
       if(fallen!=='neutral'){ addGrudge(fallen,'player',6); if(ownerTerritories(fallen).length===0){ announceKingdomFall(fallen, nameOf('player')); S.kingdomsDestroyed=(S.kingdomsDestroyed||0)+1; } }
       results.push({ name:tg.name, won:true });
@@ -2150,7 +2237,7 @@ function recruit(territoryId, amount){
   if(mpIntercept('recruit', arguments)) return;
   const t = byId(territoryId);
   const perTroop = recruitCost(t);
-  const cost = amount*perTroop;
+  const cost = marketPrice(amount*perTroop);
   if(t.owner!=='player' || S.player.gold<cost) return;
   S.player.gold -= cost;
   t.troops = Math.min(MAX_TROOPS, t.troops+amount);
@@ -2333,7 +2420,7 @@ function defenderStat(owner){
 function aiDefensePower(target){
   const isHuman = target.owner==='player' || !!(S.mp && S.mp.seats[target.owner]);
   const defPassive = isHuman && target.biome.passiveType==='defensa' ? target.biome.passiveValue : 0;
-  return defenseForce(target)*defenseMult() + (S.mpLocal ? defenseFlat(target.owner) : 0) + (isHuman? defenderStat(target.owner)*0.2:0) + defPassive + castleBonus(target);
+  return (defenseForce(target)*defenseMult() + (S.mpLocal ? defenseFlat(target.owner) : 0) + (isHuman? defenderStat(target.owner)*0.2:0) + defPassive + castleBonus(target)) * fortressMult(target);
 }
 function updatePeakLands(){
   S.peakLands = S.peakLands || {};
@@ -2362,6 +2449,7 @@ function aiTargetValue(factionId, target){
   if(!expanding && leader && target.owner===leader && leader!==factionId) v += brain.leaderBonus;
   if(target.owner==='player' && S.aiEnemyBias) v += S.aiEnemyBias;
   if(['defensa','oro'].includes(target.biome.passiveType)) v += 4;
+  if(target.special) v += 5; // la IA también disputa los territorios especiales
   v += ((S.grudges[factionId]||{})[target.owner]||0)*1.5;
   if(target.isBoss) v -= 6;
   return v + (typeof castleV!=='undefined' ? castleV : 0);
@@ -2400,6 +2488,7 @@ function aiResolveAttack(factionId, src, target){
     if(isVsPlayer){ notify('🩸', `¡Pierdes ${target.name} ante ${nameOf(factionId)}!`, 'bad'); S.lostTerritory = true; }
     else if(fallenOwner!=='neutral') addGrudge(fallenOwner, factionId, 6);
     target.owner=factionId; target.tier=Math.max(1,target.tier-1); target.shields=0; target.cannon=false;
+    specialOnConquest(target, factionId);
     target.troops = Math.max(1, Math.floor(src.troops*0.5));
     src.troops = Math.max(1, src.troops - lost);
     if(isVsPlayer){ S.player.hp = Math.max(0, S.player.hp-3); }
@@ -2423,7 +2512,7 @@ function aiTurnForFaction(factionId){
   const brain = AI_BRAIN[S.diffKey] || AI_BRAIN.media;
   const owned = ownerTerritories(factionId);
   owned.forEach(t=>{ if(t.troops<MAX_TROOPS) t.troops++; });
-  S.aiGold[factionId] = (S.aiGold[factionId]||10) + diff.income + owned.length;
+  S.aiGold[factionId] = (S.aiGold[factionId]||10) + diff.income + owned.length + (S.mp ? ownedSpecials(factionId,'mina')*SPECIAL_MINE_GOLD : 0);
 
   const isEnemyOfPlayer = isEnemyOf('player', factionId);
   const multiFaction = S.factions.length>2;
@@ -2638,6 +2727,7 @@ function mpStartGame(cfg){
   if(goal==='castles'){
     S.factions.forEach(f=>{ const home=S.territories.find(t=>t.castle===f.id) || S.territories.find(t=>t.owner===f.id); if(home){ home.castle=f.id; home.troops+=3; } });
   }
+  if(!cfg.noSpecials) placeSpecials(mulberry32(cmSeed()));
   S.mp={ seats:{}, order:cfg.humans.map(h=>h.hid), current:0, active:null, outbox:[], winner:null, reason:null, goal };
   cfg.humans.forEach(h=>{
     const cls = CLASSES[h.cls] ? h.cls : 'guerrero'; const c=CLASSES[cls];
@@ -2691,7 +2781,7 @@ function mpAct(hid, name, args){
   if(name==='odilioStrike' && !(S.player && S.player.odilioCharge)) error='No tienes el Ataque del Gran Odilio.';
   if(['recruitShields','sellShields','buildCannon'].includes(name)){ const t=byId(args[0]); if(!t || t.owner!=='player') error='Ese territorio no es tuyo.'; }
   if(['recruitShields','sellShields'].includes(name) && !error && !(Number.isInteger(args[1]) && args[1]>=1 && args[1]<=3)) error='Cantidad inválida.';
-  if(name==='recruitShields' && !error){ const t=byId(args[0]); if(shieldsOf(t)+args[1]>SHIELD_CAP) error=`Máximo ${SHIELD_CAP} escuderos por territorio.`; else if(S.player.gold<shieldCost()*args[1]) error=`Necesitas ${shieldCost()*args[1]} de oro.`; }
+  if(name==='recruitShields' && !error){ const t=byId(args[0]); if(shieldsOf(t)+args[1]>SHIELD_CAP) error=`Máximo ${SHIELD_CAP} escuderos por territorio.`; else if(S.player.gold<marketPrice(shieldCost()*args[1])) error=`Necesitas ${marketPrice(shieldCost()*args[1])} de oro.`; }
   if(name==='sellShields' && !error && shieldsOf(byId(args[0]))<args[1]) error='No tienes tantos escuderos ahí.';
   if(name==='buildCannon' && !error){ const t=byId(args[0]); if(t.cannon) error='Ese territorio ya tiene un cañón (máximo 1).'; else if(S.player.gold<cannonCost()) error=`Necesitas ${cannonCost()} de oro.`; }
   if(name==='fireCannon'){ const f=byId(args[0]), tg=byId(args[1]);
@@ -3631,7 +3721,7 @@ function tutStart(){
   // Estado de entrenamiento propio (mismo motor, datos separados)
   LOCAL.players=[{ id:'p0', hid:'h0', name:'Aprendiz', cls:'guerrero', color:IDENTITY_COLORS[0], crest:{shape:'heater',pattern:'fess',emblem:'🦁',metal:'#e6c765'} }];
   LOCAL.inbox={h0:[]}; LOCAL.srv=null; LOCAL.active=true; LOCAL.lastHid=null; LOCAL.awaitingPass=false;
-  localServerRun(()=>{ mpStartGame({ local:true, goal:'castles', legacyMap:true, humans:[{hid:'h0', name:'Aprendiz', color:IDENTITY_COLORS[0], cls:'guerrero', crest:LOCAL.players[0].crest}], ai:1, diff:'facil' }); });
+  localServerRun(()=>{ mpStartGame({ local:true, goal:'castles', legacyMap:true, noSpecials:true, humans:[{hid:'h0', name:'Aprendiz', color:IDENTITY_COLORS[0], cls:'guerrero', crest:LOCAL.players[0].crest}], ai:1, diff:'facil' }); });
   const srv=LOCAL.srv; srv.tutorial=true; srv.aiSleepTurns=999;
   const aiId=srv.factions.find(f=>!f.human).id;
   const castle=srv.territories.find(t=>t.castle==='h0'); castle.troops=6; castle.tier=1;
@@ -4077,7 +4167,7 @@ function renderHud(){
   `);
   hud.querySelector('.hud-profile').addEventListener('click', ()=>{ pendingModal='profile'; render(); });
   const odb = hud.querySelector('.odilio-badge'); if(odb) odb.addEventListener('click', enterOdilioMode);
-  hud.querySelector('.hud-gold').addEventListener('click', ()=>{ const b=incomeBreakdown(); notify('💰', `Ingreso por turno: +${b.total} = ${b.lands} tierras × ${b.perLand} (${b.landGold}) + ${b.base} base${b.passive?` + ${b.passive} de terrenos`:''}${b.tree?` + ${b.tree} de habilidades`:''}${b.buff?' · con Fortuna activa':''}.`, 'info', 6500); render(); });
+  hud.querySelector('.hud-gold').addEventListener('click', ()=>{ const b=incomeBreakdown(); notify('💰', `Ingreso por turno: +${b.total} = ${b.lands} tierras × ${b.perLand} (${b.landGold}) + ${b.base} base${b.passive?` + ${b.passive} de terrenos`:''}${b.tree?` + ${b.tree} de habilidades`:''}${b.special?` + ${b.special} de minas`:''}${b.buff?' · con Fortuna activa':''}.`, 'info', 6500); render(); });
   return hud;
 }
 
@@ -4127,7 +4217,7 @@ function renderOdilioPanel(){
 }
 function militaryStatsHTML(t, fogged){
   if(fogged) return `<div class="mil-stats"><span>⚔️ Gladiadores <b>?</b></span><span>🛡️ Escuderos <b>?</b></span>${t.cannon?'<span>💣 Cañón <b>1</b></span>':''}</div>`;
-  const def = defenseForce(t)*defenseMult() + defenseFlat(t.owner) + (t.biome.passiveType==='defensa'?t.biome.passiveValue:0) + castleBonus(t);
+  const def = (defenseForce(t)*defenseMult() + defenseFlat(t.owner) + (t.biome.passiveType==='defensa'?t.biome.passiveValue:0) + castleBonus(t)) * fortressMult(t);
   return `<div class="mil-stats"><span>⚔️ Gladiadores <b>${t.troops}</b></span><span>🛡️ Escuderos <b>${shieldsOf(t)}</b></span><span>💣 Cañón <b>${t.cannon?'1':'—'}</b></span></div>
     <div class="mil-power"><span>Ataque <b>${attackForce(t).toFixed(1)}</b></span><span>Defensa <b>${def.toFixed(1)}</b></span></div>`;
 }
@@ -4136,8 +4226,8 @@ function renderMilitaryBlock(own){
     <div class="mil-block">
       <div class="ctx-label">MILITAR</div>
       ${militaryStatsHTML(own,false)}
-      <div class="mil-row"><span>🛡️ Escuderos <small>${shieldCost()} oro · defienden ×${SHIELD_DEF} · atacan ×${SHIELD_ATK} · máx. ${SHIELD_CAP}</small></span>
-        <div class="mil-step"><button class="mil-minus" aria-label="Licenciar escudero" ${shieldsOf(own)<1?'disabled':''}>−</button><b>${shieldsOf(own)}</b><button class="mil-plus" aria-label="Reclutar escudero" ${(S.player.gold<shieldCost()||shieldsOf(own)>=SHIELD_CAP)?'disabled':''}>+</button></div></div>
+      <div class="mil-row"><span>🛡️ Escuderos <small>${marketPrice(shieldCost())} oro · defienden ×${SHIELD_DEF} · atacan ×${SHIELD_ATK} · máx. ${SHIELD_CAP}</small></span>
+        <div class="mil-step"><button class="mil-minus" aria-label="Licenciar escudero" ${shieldsOf(own)<1?'disabled':''}>−</button><b>${shieldsOf(own)}</b><button class="mil-plus" aria-label="Reclutar escudero" ${(S.player.gold<marketPrice(shieldCost())||shieldsOf(own)>=SHIELD_CAP)?'disabled':''}>+</button></div></div>
       <div class="mil-cannon"></div>
     </div>`);
   box.querySelector('.mil-minus').addEventListener('click', ()=>sellShields(own.id, 1));
@@ -4202,6 +4292,12 @@ function renderContextPanel(){
   head.querySelector('.ctx-close').addEventListener('click', ()=>{ selectedFrom=null; inspectId=null; render(); });
   panel.appendChild(head);
   const landGold = t.owner==='player' ? (landIncomeAt(Math.max(0, ownerTerritories('player').length-1)) + (t.biome.passiveType==='oro'?t.biome.passiveValue:0)) : 0;
+  const sp = specialOf(t);
+  if(sp){
+    const holder = t.owner==='neutral' ? 'Sin dueño: nadie recibe el beneficio' : (t.owner==='player' ? '✅ Es tuyo: recibes el beneficio' : `Lo aprovecha ${nameOf(t.owner)}`);
+    const cd = t.special==='ruinas' ? (ruinsTurnsLeft(t)>0 ? ` · ⏳ Agotadas: faltan ${ruinsTurnsLeft(t)} ronda(s)` : ' · ✨ Botín disponible') : '';
+    panel.appendChild(el(`<div class="ctx-info sp-info"><b>${sp.icon} ${sp.name}</b> · ${sp.desc}<br><small>${holder}${cd}</small></div>`));
+  }
   panel.appendChild(el(`<div class="ctx-info">${t.castle?`🏰 <b>Castillo de ${nameOf(t.owner)}</b> (+${castleBonus(t)} defensa · si cae, ese reino queda fuera) · `:''}🏞️ ${t.biome.passiveLabel}${t.isBoss?' · Jefe final':''} · Poder ${fogged?'?':territoryPower(t).toFixed(1)}${landGold?` · 💰 aporta +${landGold} oro/turno`:''}</div>`));
 
   if(own){
@@ -4224,7 +4320,7 @@ function renderContextPanel(){
     const rate = (S.player.cls==='picaro' ? 4 : 3) + (S.player.bonusTradeRate||0);
     const grid = el(`<div class="ctx-grid"></div>`);
     const mk = (label, sub, disabled, fn, cls)=>{ const b=el(`<button class="${cls||''}" ${disabled?'disabled':''}><span>${label}</span><small>${sub}</small></button>`); b.addEventListener('click', fn); grid.appendChild(b); };
-    [1,3].forEach(n=> mk(`🪖 +${n}`, `${n*perTroop} oro`, S.player.gold<n*perTroop || own.troops>=MAX_TROOPS, ()=>recruit(own.id, n)));
+    [1,3].forEach(n=> mk(`🪖 +${n}`, `${marketPrice(n*perTroop)} oro`, S.player.gold<marketPrice(n*perTroop) || own.troops>=MAX_TROOPS, ()=>recruit(own.id, n)));
     [1,3].forEach(n=> mk(`💰 Vender ${n}`, `+${n*rate} oro`, own.troops-n<1, ()=>tradeSell(own.id, n)));
     if(own.tier<4){ const nt=own.tier+1; const cost=TIERS[nt].upgradeCost + own.troops*3; mk(`🎖️ Entrenar`, `${TIERS[nt].icon} ${cost} oro`, S.player.gold<cost, ()=>trainTerritory(own.id)); }
     else mk(`🎖️ Entrenar`, `Calidad máx.`, true, ()=>{});
@@ -4903,11 +4999,11 @@ function renderMapCard(){
         <title>${t.name} — ${nameOf(t.owner)} — ${b.passiveLabel}${t.isBoss?' · ¡Jefe final!':''}</title>
       </g>`;
 
-    const W = Math.max(44, t.name.length*6.3 + ((t.isBoss||t.castle||t.ruins)?16:0) + 14);
+    const W = Math.max(44, t.name.length*6.3 + ((t.isBoss||t.castle||t.ruins)?16:0) + (t.special?(t.special==='ruinas'&&ruinsTurnsLeft(t)>0?30:17):0) + 14);
     const hw = W/2;
     const troopTxt = fogged ? '?' : `${t.troops}`;
     const ribbonFill = t.isBoss ? '#7a2a22' : (t.castle ? colorOf(t.owner) : '#ead9a8');
-    const ribbonStroke = (t.isBoss||t.castle) ? '#e6c765' : '#5a4122';
+    const ribbonStroke = (t.isBoss||t.castle||t.special) ? '#e6c765' : '#5a4122';
     let topCls = 'terr-top'; if(isFrom) topCls+=' selected'; if(isSelectable) topCls+=' attackable'; if(t.isBoss||t.castle) topCls+=' boss';
     topSvg += `
       <g class="${topCls}" data-id="${t.id}">
@@ -4915,7 +5011,7 @@ function renderMapCard(){
         <g transform="translate(${t.x} ${t.y-46})"><g class="ribbon">
           <path d="M${r1(-hw-7)},-8L${r1(hw+7)},-8L${r1(hw+1)},0L${r1(hw+7)},8L${r1(-hw-7)},8L${r1(-hw-1)},0Z" fill="${ribbonFill}" stroke="${ribbonStroke}" stroke-width="1" stroke-linejoin="round"/>
           <path d="M${r1(-hw)},-5.5H${r1(hw)}M${r1(-hw)},5.5H${r1(hw)}" stroke="${ribbonStroke}" stroke-width=".4" opacity=".5"/>
-          <text class="label ribbon-text" x="0" y="4">${t.isBoss?'👑 ':(t.castle?'🏰 ':(t.ruins?'🔥 ':''))}${t.name}</text>
+          <text class="label ribbon-text" x="0" y="4">${t.isBoss?'👑 ':(t.castle?'🏰 ':(t.ruins?'🔥 ':''))}${t.special?`<tspan class="sp-badge"${t.special==='ruinas'&&ruinsTurnsLeft(t)>0?' opacity=".55"':''}>${SPECIALS[t.special].icon}${t.special==='ruinas'&&ruinsTurnsLeft(t)>0?'⏳':''} </tspan>`:''}${t.name}</text>
         </g></g>
         <g transform="translate(${t.x} ${t.y+22})"><g class="medal">
           <circle class="sel-ring" r="18.5"/>
@@ -4956,6 +5052,7 @@ function renderMapCard(){
       ${S.factions.map(f=>{ const tl=teamLabel(f); const cr=f.crest?factionCrestHTML(f.id,14):''; return `<span>${cr||`<span class="dot" style="background:${f.color}"></span>`}${f.isPlayer?'Tu reino: ':''}${f.name}${tl?` (${tl})`:''}</span>`; }).join('')}
       <span><span class="dot" style="background:${NEUTRAL_COLOR}"></span>Neutral</span>
       ${S.mp?'<span>🔵 n = escuderos · 💣 = cañón</span>':''}
+      ${S.territories.some(t=>t.special)?`<span>Especiales: ${Object.values(SPECIALS).map(v=>`${v.icon} ${v.name}`).join(' · ')}</span>`:''}
       <span>🛡️ Milicia · 🏹 Arqueros · 🐴 Caballeros · 🐉 Bestias · ${S.mp && mpGoal()==='castles'?'🏰 Castillo':(S.mp && mpGoal()!=='classic'?'':'👑 Jefe final')}</span>
       <span class="daycycle-pill">${stage.icon} ${stage.name}</span>
     </div>
@@ -5206,7 +5303,7 @@ function renderModal(){
       const t = byId(Number(sel.value));
       const perTroop = recruitCost(t);
       [1,2,3].forEach(n=>{
-        const cost=n*perTroop;
+        const cost=marketPrice(n*perTroop);
         const b = el(`<button ${S.player.gold<cost?'disabled':''}>+${n} (${cost} oro)</button>`);
         b.addEventListener('click', ()=>recruit(t.id, n));
         row.appendChild(b);
