@@ -93,7 +93,11 @@
   html.lite .odilio-badge{ box-shadow:0 0 10px var(--oc); }
   html.lite .toast, html.lite #mapSvg{ box-shadow:none; }
   .perf-card{ text-align:left; }
-  .perf-opts{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; margin-top:6px; }
+  .perf-opts{ display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:6px; margin-top:6px; }
+  /* ===== Lite Extremo: nada animado, sin sombras ni filtros (la interfaz y el juego son los mismos) ===== */
+  html.xlite *, html.xlite *::before, html.xlite *::after{ animation:none !important; transition:none !important; box-shadow:none !important; text-shadow:none !important; filter:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+  html.xlite #mapSvg{ shape-rendering:optimizeSpeed; }
+  html.xlite .terr .hl{ stroke-width:8; }
   .perf-opts button{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:8px 10px; }
   .perf-opts button small{ font-family:'Spectral',serif; font-size:11px; opacity:.85; line-height:1.25; }
   .sp-info small{ opacity:.85; }
@@ -1412,7 +1416,9 @@ function notify(icon, text, type, durationMs){
   const id = ++toastIdCounter;
   S.toasts.push({id, icon, text, type:type||'info'});
   if(S.toasts.length>6) S.toasts.shift();
-  setTimeout(()=>{ if(!S) return; S.toasts = S.toasts.filter(t=>t.id!==id); render(); }, durationMs||4600);
+  setTimeout(()=>{ if(!S) return; S.toasts = S.toasts.filter(t=>t.id!==id);
+    if(PERF.xlite && typeof document!=='undefined'){ const n=document.querySelector(`.toast[data-tid="${id}"]`); if(n || !S.toasts.length){ if(n) n.remove(); return; } }
+    render(); }, durationMs||4600);
 }
 
 // ---------- FASE 4: perfil persistente, logros, Salón del Reino, historia, guardado ----------
@@ -2669,7 +2675,7 @@ function el(html){ const d=document.createElement('div'); d.innerHTML=html.trim(
 function renderToastStack(){
   const stack = el(`<div class="toast-stack"></div>`);
   S.toasts.forEach(t=>{
-    stack.appendChild(el(`<div class="toast ${t.type}">${t.icon} ${t.text}</div>`));
+    stack.appendChild(el(`<div class="toast ${t.type}"${PERF.xlite?` data-tid="${t.id}"`:''}>${t.icon} ${t.text}</div>`));
   });
   return stack;
 }
@@ -3069,7 +3075,7 @@ function mpConnect(then){
     sock.on('state', payload=>{ if(TUT.active){ TUT.saved.mp.lastPayload=payload; TUT.saved.needsRejoin=true; return; } mpApplyState(payload); });
     sock.on('toast', t=>{ if(TUT.active) return; notify(t.icon, t.text, t.type); render(); });
     sock.on('chatHistory', list=>{ MP.chat = Array.isArray(list) ? list : []; chatRefresh(); });
-    sock.on('chat', msg=>{ MP.chat.push(msg); if(MP.chat.length>100) MP.chat.shift(); if(!MP.chatOpen && msg.pid!==MP.myId){ MP.chatUnread++; sfx('tap'); } chatRefresh(); if(!TUT.active && !MP.chatOpen) render(); });
+    sock.on('chat', msg=>{ MP.chat.push(msg); if(MP.chat.length>100) MP.chat.shift(); if(!MP.chatOpen && msg.pid!==MP.myId){ MP.chatUnread++; sfx('tap'); } chatRefresh(); if(!TUT.active && !MP.chatOpen && !(PERF.xlite && perfChatBadge())) render(); });
     sock.on('kicked', ()=>{ if(TUT.active){ TUT.saved.kicked=true; return; } mpClearSession(); MP.room=null; MP.online=false; newGame(); menuTab='mp'; notify('🚪','El anfitrión te sacó de la sala.','bad'); render(); });
   });
 }
@@ -3195,16 +3201,30 @@ function factionCrestHTML(ownerId, size){
 // Solo cambia cómo se DIBUJA el juego en este teléfono. No toca el estado de la partida, las reglas ni el servidor,
 // así que se puede cambiar en plena partida (online o Mismo teléfono) sin afectar a nadie.
 const PERF_KEY = 'madridKingdom.perf.v1';
-const PERF = { lite:false, decided:false, suggest:false };
-function perfLoad(){ const v = localRead(PERF_KEY) || {}; PERF.lite = !!v.lite; PERF.decided = !!v.decided; perfApply(); }
-function perfApply(){ try{ document.documentElement.classList.toggle('lite', PERF.lite); }catch(e){} }
-function setPerf(lite){
-  PERF.lite = !!lite; PERF.decided = true; PERF.suggest = false;
-  localWrite(PERF_KEY, { lite:PERF.lite, decided:true });
-  perfApply(); MAP_ART.key = null;
-  notify(PERF.lite?'⚡':'✨', PERF.lite ? 'Modo Lite activado: menos efectos, mismo juego.' : 'Calidad alta activada.', 'info');
+const PERF = { lite:false, xlite:false, decided:false, suggest:false };
+function perfLoad(){ const v = localRead(PERF_KEY) || {}; PERF.xlite = !!v.xlite; PERF.lite = !!v.lite || PERF.xlite; PERF.decided = !!v.decided; perfApply(); }
+function perfApply(){ try{ document.documentElement.classList.toggle('lite', PERF.lite); document.documentElement.classList.toggle('xlite', PERF.xlite); }catch(e){} }
+// level: false/'high' = Calidad alta · true/'lite' = Lite · 'xlite' = Lite Extremo
+function setPerf(level){
+  const lv = level==='xlite' ? 'xlite' : ((level===true || level==='lite') ? 'lite' : 'high');
+  PERF.xlite = lv==='xlite'; PERF.lite = lv!=='high'; PERF.decided = true; PERF.suggest = false;
+  localWrite(PERF_KEY, PERF.xlite ? { lite:true, xlite:true, decided:true } : { lite:PERF.lite, decided:true });
+  perfApply(); MAP_ART.key = null; MAP_DOM.key = null; MAP_DOM.svg = null;
+  notify(PERF.xlite?'🪶':(PERF.lite?'⚡':'✨'), PERF.xlite ? 'Lite Extremo activado: máximo rendimiento, mismo juego.' : (PERF.lite ? 'Modo Lite activado: menos efectos, mismo juego.' : 'Calidad alta activada.'), 'info');
   render();
 }
+// ---- Lite Extremo: menos trabajo por actualización (el juego y los datos no cambian) ----
+const MAP_DOM = { key:null, svg:null };   // mapa ya dibujado: se reutiliza si nada visible cambió
+let RENDER_PENDING = false, RENDER_NOW = false;
+const PERF_NARROW = (typeof window!=='undefined' && window.matchMedia) ? window.matchMedia('(max-width:880px)') : null;
+function perfNarrow(){ return !!(PERF_NARROW && PERF_NARROW.matches); }
+if(PERF_NARROW && PERF_NARROW.addEventListener) PERF_NARROW.addEventListener('change', ()=>{ if(PERF.xlite && S) render(); });
+// Lite Extremo: un mensaje de chat solo actualiza la insignia de "sin leer", no toda la pantalla.
+function perfChatBadge(){
+  const btns = document.querySelectorAll('.chat-btn'); if(!btns.length) return false;
+  const html = el(chatButtonHTML()).innerHTML; btns.forEach(b=>{ b.innerHTML = html; }); return true;
+}
+if(typeof document!=='undefined') document.addEventListener('visibilitychange', ()=>{ if(PERF.xlite && !document.hidden && S) render(); });
 function perfIsIOS(){ const ua = navigator.userAgent||''; return /iPhone|iPad|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); }
 // Primera vez: si el equipo parece limitado, se SUGIERE el Modo Lite (nunca se activa solo). En iPhone no se sugiere.
 function perfProbe(){
@@ -3218,10 +3238,12 @@ function perfProbe(){
 function perfPickerEl(){
   const box = el(`<div class="perf-opts">
     <button class="${PERF.lite?'':'tab-active'}"><b>✨ Calidad alta</b><small>Todos los efectos y animaciones.</small></button>
-    <button class="${PERF.lite?'tab-active':''}"><b>⚡ Modo Lite</b><small>Menos efectos y animaciones. El juego es exactamente igual.</small></button></div>`);
-  const [hi, lo] = box.querySelectorAll('button');
+    <button class="${PERF.lite&&!PERF.xlite?'tab-active':''}"><b>⚡ Modo Lite</b><small>Menos efectos y animaciones. El juego es exactamente igual.</small></button>
+    <button class="${PERF.xlite?'tab-active':''}"><b>🪶 Lite Extremo</b><small>Para Android muy lentos: mapa simple, sin animaciones. Mismo juego.</small></button></div>`);
+  const [hi, lo, xl] = box.querySelectorAll('button');
   hi.addEventListener('click', ()=>{ if(PERF.lite || !PERF.decided) setPerf(false); });
-  lo.addEventListener('click', ()=>{ if(!PERF.lite) setPerf(true); });
+  lo.addEventListener('click', ()=>{ if(!PERF.lite || PERF.xlite) setPerf(true); });
+  xl.addEventListener('click', ()=>{ if(!PERF.xlite) setPerf('xlite'); });
   return box;
 }
 
@@ -3343,6 +3365,7 @@ function queueOdilioFrom(state){
   if(fresh.length){ MP.seenOdilio = Math.max(...fresh.map(e=>e.id)); fresh.forEach(e=>ODILIO_QUEUE.push(e)); }
 }
 function runOdilioQueue(){
+  if(PERF.xlite){ while(ODILIO_QUEUE.length){ const ev=ODILIO_QUEUE.shift(); notify(ev.icon, `¡${ev.name} alcanzó EL GRAN ODILIO! Ataque especial: ${ev.power} (ataca 2 territorios).`, 'epic', 6000); render(); } return; }
   if(odilioPlaying || MG.active || (LOCAL.active && LOCAL.awaitingPass) || !ODILIO_QUEUE.length) return;
   odilioPlaying = true;
   playOdilio(ODILIO_QUEUE.shift(), ()=>{ odilioPlaying=false; runOdilioQueue(); });
@@ -3399,6 +3422,7 @@ function playStrike(ev, done){
   setTimeout(close, window.__MK_ST_MS || 3200);
 }
 function runStrikeQueue(){
+  if(PERF.xlite){ while(STRIKE_QUEUE.length){ const ev=STRIKE_QUEUE.shift(); notify(ev.icon, `${ev.name}: ${ev.results.map(r=>r.won?`🏴 ${r.name} conquistado`:`🛡️ ${r.name} resistió (−${r.lost})`).join(' · ')}`, 'epic', 6000); render(); } return; }
   if(odilioPlaying || MG.active || !STRIKE_QUEUE.length) return;
   odilioPlaying = true; playStrike(STRIKE_QUEUE.shift(), ()=>{ odilioPlaying=false; runStrikeQueue(); runOdilioQueue(); });
 }
@@ -3902,6 +3926,12 @@ function renderTutTab(){
 
 function render(){
   if(mpServerSide()) return;
+  if(PERF.xlite && !RENDER_NOW && !TUT.active && typeof requestAnimationFrame==='function'){
+    if(RENDER_PENDING) return;
+    RENDER_PENDING = true;
+    requestAnimationFrame(()=>{ RENDER_PENDING=false; RENDER_NOW=true; try{ render(); } finally{ RENDER_NOW=false; } });
+    return;
+  }
   if(TUT.active) setTimeout(tutTick, 0);
   const app = document.getElementById('app');
   if(!S){ newGame(); }
@@ -3930,7 +3960,8 @@ function render(){
   main.appendChild(renderMapCard());
   main.appendChild(renderActionBar());
   layout.appendChild(main);
-  layout.appendChild(renderSide());
+  // Lite Extremo: en teléfono la columna lateral está oculta por CSS; no se construye (su contenido sigue en ☰ Más).
+  if(!(PERF.xlite && perfNarrow())) layout.appendChild(renderSide());
   app.appendChild(layout);
 
   if(S.toasts.length) app.appendChild(renderToastStack());
@@ -4971,9 +5002,27 @@ function artCity(t){
     `<rect x="7" y="-13" width="6" height="14" fill="#cbbd98" stroke="${INK}" stroke-width=".6"/><path d="M6 -13L10 -19L14 -13Z" fill="#7d3524" stroke="${INK}" stroke-width=".6"/>`+
     `<line x1="10" y1="-19" x2="10" y2="-28" stroke="${INK}" stroke-width=".8"/><path d="M10 -28L19 -25.5L10 -23Z" fill="${col}" stroke="${INK}" stroke-width=".5"/>`;
 }
+// Lite Extremo: la misma geografía (mismas celdas, costa y fronteras) dibujada con muchísimos menos puntos y capas.
+function ensureMapArtXlite(baseKey){
+  const key = baseKey+'#xlite';
+  if(MAP_ART.key===key) return MAP_ART;
+  const cells = voronoiCells(S.territories, MAP_W, MAP_H);
+  const land = buildLandPoly(hashStr(baseKey) || 99);
+  const landD = polyToPath(land.filter((_,i)=>i%4===0));
+  const outlines={}, polys={}, decor={};
+  S.territories.forEach((t,i)=>{ polys[t.id]=cells[i]; outlines[t.id]=polyToPath(cells[i]); decor[t.id]=''; });
+  const defs = `<clipPath id="landClip"><path d="${landD}"/></clipPath>`;
+  MAP_ART = { key, land, landD, outlines, polys, decor, defs, xlite:true,
+    oceanBase:`<rect x="0" y="0" width="${MAP_W}" height="${MAP_H}" fill="#0c3346"/>`, coastHalo:'',
+    coastTop:`<path d="${landD}" fill="none" stroke="#e2cf98" stroke-width="3" stroke-linejoin="round" style="pointer-events:none"/>`,
+    ocean:'', rivers:'', roads: buildRoads(mulberry32(hashStr(baseKey)^0x77)), walls: buildWalls(cells, mulberry32(hashStr(baseKey)^0x3c1)), frame:'' };
+  return MAP_ART;
+}
 function ensureMapArt(){
   MAP_W = S.mapW || 960; MAP_H = S.mapH || 600;
-  const key = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length+'#'+MAP_W+'x'+MAP_H+'#'+(S.walls||[]).length+(PERF.lite?'#lite':'');
+  const baseKey = S.territories.map(t=>`${t.id}:${r1(t.x)},${r1(t.y)},${t.shapeSeed||0}`).join('|')+'#'+S.edges.length+'#'+MAP_W+'x'+MAP_H+'#'+(S.walls||[]).length;
+  if(PERF.xlite) return ensureMapArtXlite(baseKey);
+  const key = baseKey+(PERF.lite?'#lite':'');
   if(MAP_ART.key===key) return MAP_ART;
   const cells = voronoiCells(S.territories, MAP_W, MAP_H);
   const seed = hashStr(key) || 99;
@@ -5025,7 +5074,16 @@ function renderMapCard(){
 
   let baseSvg = '', topSvg = '';
   const odTargetIds = new Set((ODMODE.active && odilioCharge()) ? odilioTargets().map(v=>v.tg.id) : []);
-  S.territories.forEach(t=>{
+  const XL = !!A.xlite;
+  let xlKey = null;
+  if(XL){
+    // Todo lo que se ve en el mapa; si no cambió, se reutiliza el mapa ya dibujado (sin volver a crearlo).
+    xlKey = JSON.stringify([A.key, MP.me, selectedFrom, ODMODE.active, ODMODE.picks, [...odTargetIds], S.modFog, odilioCharge(), S.turn,
+      S.factions.map(f=>[f.id,f.color,f.name,f.team]), (S.aiTruces||[]).map(tr=>[tr.a,tr.b,tr.turnsLeft]), S.ap,
+      S.territories.map(t=>[t.owner,t.troops,t.tier,t.shields||0,!!t.cannon,t.castle||0,!!t.ruins,t.special||0,t.special==='ruinas'?ruinsTurnsLeft(t):0,!!t.isBoss])]);
+  }
+  const reuse = XL && MAP_DOM.svg && MAP_DOM.key===xlKey;
+  if(!reuse) S.territories.forEach(t=>{
     const isFrom = selectedFrom===t.id;
     const isSelectable = selectedFrom && neighbors(selectedFrom).includes(t.id) && isEnemyOf('player', t.owner);
     const b = t.biome;
@@ -5039,6 +5097,9 @@ function renderMapCard(){
     const d = A.outlines[t.id];
     const neutral = t.owner==='neutral';
     const tex = textureFor(b);
+    if(XL){
+      baseSvg += `<g class="${cls}" data-id="${t.id}"><path class="fillbase" d="${d}" fill="${col}"/>${fogged?`<path d="${d}" fill="#1e2733" fill-opacity=".35"/>`:''}<path class="hl" d="${d}" fill="none"/><path class="border" d="${d}" stroke="${neutral?INK:col}" stroke-width="${neutral?1.5:3}" fill="none"/><title>${t.name} — ${nameOf(t.owner)}</title></g>`;
+    } else
     baseSvg += `
       <g class="${cls}" data-id="${t.id}" data-x="${t.x}" data-y="${t.y}">
         <path class="fillbase" d="${d}" fill="${col}"/>
@@ -5062,7 +5123,7 @@ function renderMapCard(){
     let topCls = 'terr-top'; if(isFrom) topCls+=' selected'; if(isSelectable) topCls+=' attackable'; if(t.isBoss||t.castle) topCls+=' boss';
     topSvg += `
       <g class="${topCls}" data-id="${t.id}">
-        <g transform="translate(${t.x} ${t.y-6})"><g class="city">${artCity(t)}</g></g>
+        ${XL && !(t.isBoss||t.castle) ? '' : `<g transform="translate(${t.x} ${t.y-6})"><g class="city">${artCity(t)}</g></g>`}
         <g transform="translate(${t.x} ${t.y-46})"><g class="ribbon">
           <path d="M${r1(-hw-7)},-8L${r1(hw+7)},-8L${r1(hw+1)},0L${r1(hw+7)},8L${r1(-hw-7)},8L${r1(-hw-1)},0Z" fill="${ribbonFill}" stroke="${ribbonStroke}" stroke-width="1" stroke-linejoin="round"/>
           <path d="M${r1(-hw)},-5.5H${r1(hw)}M${r1(-hw)},5.5H${r1(hw)}" stroke="${ribbonStroke}" stroke-width=".4" opacity=".5"/>
@@ -5084,7 +5145,7 @@ function renderMapCard(){
       </g>`;
   });
 
-  card.appendChild(el(`
+  card.appendChild(reuse ? MAP_DOM.svg : el(`
     <svg id="mapSvg" class="${h>w?'tall':''}" viewBox="0 0 ${w} ${h}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa de Madrid Kingdom" style="--odc:${odilioCharge()?(ODILIO[S.player.cls]||ODILIO.guerrero).color:'#f3d77a'};${h>w?`max-width:min(100%, calc(78vh * ${(w/h).toFixed(3)}));`:''}">
       <defs>${A.defs}</defs>
       ${A.oceanBase}
@@ -5096,7 +5157,7 @@ function renderMapCard(){
       <g style="pointer-events:none">${A.roads}</g>
       ${allianceSvg}
       ${topSvg}
-      <rect x="0" y="0" width="${w}" height="${h}" fill="${stage.tint}" opacity=".55" style="pointer-events:none"/>
+      ${XL ? '' : `<rect x="0" y="0" width="${w}" height="${h}" fill="${stage.tint}" opacity=".55" style="pointer-events:none"/>`}
       ${PERF.lite ? '' : `<rect class="map-grain" x="0" y="0" width="${w}" height="${h}" filter="url(#grain)" opacity=".4" style="pointer-events:none"/>`}
       <g style="pointer-events:none">${A.frame}</g>
     </svg>
@@ -5136,9 +5197,12 @@ function renderMapCard(){
       openAttackChoice(selectedFrom, id);
     }
   };
+  if(reuse) return card; // el mapa reutilizado ya tiene sus oyentes
+  if(XL){ MAP_DOM.key = xlKey; MAP_DOM.svg = svgEl; }
   card.querySelectorAll('.terr, .terr-top').forEach(g=>{
     const id = Number(g.dataset.id);
     g.addEventListener('click', ()=>handleTerritoryClick(id));
+    if(XL) return; // Lite Extremo: sin efecto "mouse encima" (en táctil no se usa)
     g.addEventListener('pointerenter', ()=>{ svgEl.querySelectorAll(`.terr[data-id="${id}"], .terr-top[data-id="${id}"]`).forEach(n=>n.classList.add('hovered')); });
     g.addEventListener('pointerleave', ()=>{ svgEl.querySelectorAll(`.terr[data-id="${id}"], .terr-top[data-id="${id}"]`).forEach(n=>n.classList.remove('hovered')); });
   });
