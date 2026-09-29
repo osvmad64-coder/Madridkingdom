@@ -56,6 +56,19 @@ UI (screens/, ui/)  →  lógica (domain/)  →  modelos (models/)  →  persist
 - **Cambiar puntos o rachas:** `config/game.ts`.
 - **Login / sincronización:** nuevo `StorageAdapter` + `partner.id` como autor (`HeartEntry.authorId` ya existe).
 
-## Render (fase posterior)
+## Publicar en Render (Static Site gratuito)
 
-Sitio estático: Root Directory `couples-app`, Build `npm install && npm run build`, Publish `dist`.
+Es una app 100% estática: los datos viven en cada teléfono (localStorage + IndexedDB), no necesita servidor ni variables de entorno.
+Va en un servicio **separado** de Madrid Kingdom (ese servidor Express no se toca).
+
+| Campo | Valor |
+|---|---|
+| Tipo | **Static Site** (gratis) |
+| Repositorio | `osvmad64-coder/Madridkingdom` |
+| Branch | la rama donde está `couples-app/` |
+| Root Directory | `couples-app` |
+| Build Command | `npm ci && npm run build` |
+| Publish Directory | `dist` |
+| Node | `.node-version` (22) |
+
+La navegación usa `#/ruta`, así que no hace falta ninguna regla de rewrite.
