@@ -12,7 +12,7 @@ import { UsScreen } from './UsScreen';
 
 /** Sub-rutas de Nosotros: /nosotros/momentos, /nosotros/cartas, /nosotros/misiones. */
 export function UsRouter({ route }: { route: Route }) {
-  const [, sub, a, b] = route.segments;
+  const [, sub, a] = route.segments;
   // Si el estado se reemplazó (respaldo importado, datos de ejemplo), crea las misiones del mes.
   const hasMonth = Object.keys(useAppState().monthlyMissions).length > 0;
   useEffect(() => {
@@ -25,7 +25,6 @@ export function UsRouter({ route }: { route: Route }) {
   }
   if (sub === 'cartas') {
     if (a === 'nueva') return <LetterEditorScreen />;
-    if (a === 'editar' && b) return <LetterEditorScreen id={b} />;
     if (a) return <LetterReadScreen id={a} />;
     return <LettersScreen />;
   }

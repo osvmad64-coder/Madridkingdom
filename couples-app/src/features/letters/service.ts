@@ -20,8 +20,8 @@ export function lettersByStatus(s: Pick<AppState, 'futureLetters'>, today: DayKe
   return out;
 }
 
-/** Se puede editar mientras nadie la haya abierto. */
-export const canEditLetter = (l: FutureLetter) => !l.openedAt;
+/** Las cartas se sellan al guardarse: nadie puede editarlas ni leerlas antes de su fecha. */
+export const canEditLetter = (_l: FutureLetter) => false;
 
 export function findLetter(s: Pick<AppState, 'futureLetters'>, id: string) {
   return s.futureLetters.find((l) => l.id === id);

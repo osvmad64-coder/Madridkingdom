@@ -29,18 +29,6 @@ export const createLetter =
     return ok({ ...s, futureLetters: [l, ...s.futureLetters] }, [{ type: 'saved', text: 'Carta guardada 💌' }]);
   };
 
-/** Solo mientras no se haya abierto. */
-export const updateLetter =
-  (id: string, input: LetterInput): Action =>
-  (s, ctx) => {
-    const cur = findLetter(s, id);
-    if (!cur || cur.openedAt) return ok(s);
-    return ok(
-      { ...s, futureLetters: s.futureLetters.map((l) => (l.id === id ? { ...l, ...clean(input), updatedAt: ctx.now } : l)) },
-      [{ type: 'saved', text: 'Cambios guardados' }],
-    );
-  };
-
 export const deleteLetter =
   (id: string): Action =>
   (s) =>

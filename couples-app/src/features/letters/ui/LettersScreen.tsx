@@ -2,7 +2,10 @@ import { navigate } from '../../../app/router';
 import { useToday } from '../../../app/useToday';
 import { dayMonthLabel, diffDays, longDayLabel, toDayKey } from '../../../domain/time';
 import type { AppState } from '../../../models/types';
-import { useAppState } from '../../../store/store';
+import { useState } from 'react';
+import { dispatch, useAppState } from '../../../store/store';
+import { ConfirmModal } from '../../../ui/forms';
+import { deleteLetter } from '../actions';
 import { Button } from '../../../ui/controls';
 import { EmptyState, ScreenHeader, SectionHead } from '../../../ui/display';
 import type { FutureLetter } from '../model';
@@ -27,6 +30,7 @@ export function LettersScreen() {
   const today = useToday();
   const { locked, ready, opened } = lettersByStatus(s, today);
   const empty = !locked.length && !ready.length && !opened.length;
+  const [toDelete, setToDelete] = useState<string | null>(null);
 
   return (
     <div className="stack" style={{ '--gap': '18px' } as React.CSSProperties}>
@@ -76,10 +80,10 @@ export function LettersScreen() {
                     <p className="tiny muted">
                       {left === 1 ? 'Falta 1 día' : `Faltan ${left} días`}{fromTo(s, l) ? ` · ${fromTo(s, l)}` : ''}
                     </p>
+                    <button type="button" className="link letter-locked__delete" aria-label="Eliminar carta" onClick={() => setToDelete(l.id)}>
+                      Eliminar
+                    </button>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => navigate(`/nosotros/cartas/editar/${l.id}`)}>
-                    Editar
-                  </Button>
                 </article>
               );
             })}
@@ -105,6 +109,19 @@ export function LettersScreen() {
           </div>
         </>
       )}
+
+      <ConfirmModal
+        open={!!toDelete}
+        emoji="🗑️"
+        title="¿Eliminar esta carta?"
+        text="Se borrará sin abrirse. No se podrá recuperar."
+        confirmLabel="Sí, eliminar"
+        onClose={() => setToDelete(null)}
+        onConfirm={() => {
+          dispatch(deleteLetter(toDelete!));
+          setToDelete(null);
+        }}
+      />
     </div>
   );
 }
