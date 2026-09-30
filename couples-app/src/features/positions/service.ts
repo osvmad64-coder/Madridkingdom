@@ -117,11 +117,12 @@ export function completedPositions(schedule: Record<MonthKey, PositionMonth>): P
 }
 
 /** Ids de imágenes que siguen en uso (biblioteca + historial) para no borrarlas. */
-export function mediaInUse(s: Pick<AppState, 'positions' | 'positionSchedule' | 'dateIdeas'>): Set<string> {
+export function mediaInUse(s: Pick<AppState, 'positions' | 'positionSchedule' | 'dateIdeas' | 'futureLetters'>): Set<string> {
   const ids = new Set<string>();
   for (const p of s.positions) [p.imageId, p.thumbId].forEach((i) => i && ids.add(i));
   for (const m of Object.values(s.positionSchedule))
     for (const a of Object.values(m.days)) [a.snapshot.imageId, a.snapshot.thumbId].forEach((i) => i && ids.add(i));
   for (const d of s.dateIdeas) if (d.imageId) ids.add(d.imageId);
+  for (const l of s.futureLetters ?? []) [l.imageId, l.thumbId].forEach((i) => i && ids.add(i));
   return ids;
 }

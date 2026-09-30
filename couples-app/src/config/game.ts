@@ -58,6 +58,21 @@ export const gameConfig = {
     pointOptions: [50, 100, 150, 200],
   },
 
+  missions: {
+    /** Puntos por dificultad (equilibrados con 100 pts por ❤️ al día). */
+    tierPoints: { easy: 100, medium: 200, hard: 300, special: 500 },
+    /** Bonus por completar TODAS las misiones del mes (una sola vez). */
+    monthBonus: 1000,
+    /** Cuántas misiones por mes y con qué probabilidad. */
+    countWeights: [
+      { count: 3, weight: 1 },
+      { count: 4, weight: 2 },
+      { count: 5, weight: 1 },
+    ],
+    /** Máximo de misiones "especiales" por mes. */
+    maxSpecialPerMonth: 1,
+  },
+
   dateNight: {
     /** Cuántas elecciones recientes recuerda Sorpréndenos para no repetir. */
     recentWindow: 5,

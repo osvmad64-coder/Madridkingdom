@@ -92,3 +92,20 @@ export function shortDayLabel(day: DayKey): string {
   const d = fromDayKey(day);
   return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
 }
+
+/** "12 de marzo de 2026" */
+export function longDayLabel(day: DayKey): string {
+  const d = fromDayKey(day);
+  return `${d.getDate()} de ${MONTHS[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
+/** "14 de febrero" */
+export function dayMonthLabel(day: DayKey): string {
+  const d = fromDayKey(day);
+  return `${d.getDate()} de ${MONTHS[d.getMonth()]}`;
+}
+
+/** Nombre del mes en minúsculas: "septiembre". */
+export function monthName(month: MonthKey): string {
+  return MONTHS[Number(month.slice(5, 7)) - 1];
+}

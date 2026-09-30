@@ -22,6 +22,9 @@ En **Ajustes → Cargar datos de ejemplo** se llena con 60 días de datos y cita
 | 💋 Posiciones especiales | Ajustes → Contenido privado → Posiciones | Imagen, nombre, descripción, categoría, dificultad, bonus. Frecuencia configurable. |
 | 💕 Citas | Citas → + Agregar / Biblioteca | Cada cita guarda sus propios filtros. Sorpréndenos elige solo entre ellas. |
 | 💾 Respaldo | Ajustes → Nuestros datos | Exportar / importar JSON (incluye imágenes). |
+| ❤️ Fechas importantes | Nosotros → Próxima fecha / Momentos | Contador "Juntos desde hace…", próximo aniversario y timeline. |
+| 💌 Cartas para el futuro | Nosotros → Cartas | Bloqueadas hasta su fecha (se revisa con la fecha real de hoy). |
+| 🎯 Misiones del mes | Nosotros → Misiones | Las genera la app (12 tipos internos); el progreso se calcula solo. |
 
 Eliminar algo nunca borra el historial: los días completados y las citas realizadas guardan una copia.
 
@@ -40,6 +43,9 @@ UI (screens/, ui/)  →  lógica (domain/)  →  modelos (models/)  →  persist
 | `src/features/challenges/` | **Retos privados**: `model`, `service` (sorteo, reemplazo, historial), `actions`, `seed` (contenido inicial), `ui/` (tarjeta, Mis retos, editor). |
 | `src/features/positions/` | **Posiciones**: `model`, `service` (sorteo por `positionFrequency`), `actions`, `ui/` (`PositionCard`, `PositionDetail`, `PositionPicker`, `PositionLibraryScreen`, editor). |
 | `src/features/dates/` | **Biblioteca de citas**: `model`, `service` (filtros, Random sin repetir, historial), `actions`, `ui/` (editor, tarjeta de biblioteca). |
+| `src/features/moments/` | **Fechas importantes**: `model`, `kinds`, `service` (duración real, próximo aniversario, timeline), `actions`, `ui/`. |
+| `src/features/letters/` | **Cartas**: `model`, `service` (estado según hoy), `actions`, `ui/` (lista, editor, lectura con animación). |
+| `src/features/missions/` | **Misiones**: `library` (12 tipos: variantes, título y cómo medir progreso), `service` (generación mensual, datos del mes, progreso), `actions` (generar, reclamar, bonus), `ui/`. |
 | `src/domain/` | Lógica pura compartida: `streaks`, `points`, `achievements`, `stats`, `time`, `random`. |
 | `src/content/` | Opciones y textos: `dateOptions.ts`, `positionOptions.ts`, `achievements.ts`, `messages.ts`, `demo/` (solo datos de ejemplo). |
 | `src/store/` | `core.ts` (tipos de acción), `actions.ts` (registro, ajustes, calendario `ensureCalendarMonth`), `selectors.ts`, `store.ts`, `initialState.ts` (esquema v2 + migración), `demo.ts`. |
@@ -53,7 +59,8 @@ UI (screens/, ui/)  →  lógica (domain/)  →  modelos (models/)  →  persist
 - **Tipos de reto permitidos en los sorteos:** `settings.challengeTypes` (vacío = todos).
 - **Evitar repetir citas durante X días:** `settings.avoidRepeatDays`.
 - **Más logros:** agregar a `content/achievements.ts` (métricas en `models/types.ts → AchievementMetric`).
-- **Cambiar puntos o rachas:** `config/game.ts`.
+- **Cambiar puntos, rachas, puntos de misiones o bonus mensual:** `config/game.ts`.
+- **Nuevo tipo de misión:** agregarlo en `features/missions/library.ts` (y, si hace falta, un dato nuevo en `buildMonthData`).
 - **Login / sincronización:** nuevo `StorageAdapter` + `partner.id` como autor (`HeartEntry.authorId` ya existe).
 
 ## Publicar en Render (Static Site gratuito)

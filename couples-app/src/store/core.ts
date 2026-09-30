@@ -15,6 +15,8 @@ export type Effect =
   | { type: 'achievement'; id: string; title: string; emoji: string }
   | { type: 'challenge'; title: string; points: number }
   | { type: 'position'; title: string; points: number }
+  | { type: 'mission'; title: string; points: number }
+  | { type: 'month-complete'; month: string; points: number }
   | { type: 'favorite'; added: boolean }
   | { type: 'saved'; text: string }
   | { type: 'date-done'; title: string; points: number };

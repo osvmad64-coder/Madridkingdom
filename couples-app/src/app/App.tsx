@@ -2,7 +2,10 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { IntimacyScreen } from '../screens/intimacy/IntimacyScreen';
 import { DatesRouter } from '../screens/dates/DatesRouter';
-import { UsScreen } from '../screens/us/UsScreen';
+import { UsRouter } from '../screens/us/UsRouter';
+import { ensureCurrentPeriod } from '../store/actions';
+import { dispatch } from '../store/store';
+import { useToday } from './useToday';
 import { SettingsRouter } from '../screens/settings/SettingsRouter';
 import { FxLayer } from '../ui/FxLayer';
 import { useRoute, type TabId } from './router';
@@ -13,6 +16,12 @@ const SECTION: Partial<Record<TabId, string>> = { dates: 'dates' };
 export function App() {
   const route = useRoute();
   const scrollRef = useRef<HTMLElement>(null);
+  // Al abrir la app y cada vez que cambia el día (o el mes): preparar el periodo.
+  // Al cambiar `today` toda la app se vuelve a dibujar con la fecha nueva.
+  const today = useToday();
+  useEffect(() => {
+    dispatch(ensureCurrentPeriod);
+  }, [today]);
 
   // Cada cambio de pantalla empieza arriba.
   useEffect(() => {
@@ -28,7 +37,7 @@ export function App() {
       screen = <DatesRouter route={route} />;
       break;
     case 'us':
-      screen = <UsScreen />;
+      screen = <UsRouter route={route} />;
       break;
     case 'settings':
       screen = <SettingsRouter route={route} />;

@@ -72,6 +72,16 @@ export function FxLayer() {
             showToast('💋', 'Posición completada');
             break;
           }
+          case 'mission': {
+            const b = makeBurst(['🎯', '⭐', '✨', '💕']);
+            setBursts((l) => [...l, b]);
+            setTimeout(() => setBursts((l) => l.filter((x) => x.id !== b.id)), 1100);
+            showToast('🎯', 'Misión completada');
+            break;
+          }
+          case 'month-complete':
+            enqueue({ emoji: '🏆', eyebrow: 'Misiones del mes', title: '¡Completamos el mes! ❤️', text: `Bonus mensual: +${formatNumber(e.points)} puntos` });
+            break;
           case 'saved':
             showToast('✓', e.text);
             break;

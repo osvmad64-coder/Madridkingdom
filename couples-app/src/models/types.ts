@@ -1,4 +1,7 @@
 import type { Position, PositionMonth } from '../features/positions/model';
+import type { ImportantDate } from '../features/moments/model';
+import type { FutureLetter } from '../features/letters/model';
+import type { MissionMonth } from '../features/missions/model';
 
 export type { Position, PositionMonth, PositionAssignment, PositionSnapshot, PositionStatus } from '../features/positions/model';
 
@@ -44,7 +47,7 @@ export interface HeartEntry {
 }
 
 /** Fuente de un movimiento de puntos. */
-export type PointsSource = 'heart' | 'streak' | 'challenge' | 'position' | 'date' | 'achievement' | 'bonus';
+export type PointsSource = 'heart' | 'streak' | 'challenge' | 'position' | 'date' | 'mission' | 'achievement' | 'bonus';
 
 /**
  * Libro de puntos: cada punto ganado es un evento con referencia a lo que lo generó.
@@ -295,4 +298,14 @@ export interface AppState {
     filters: DateFilters;
   };
   settings: Settings;
+  /** ❤️ Fechas importantes de la relación. */
+  importantDates: ImportantDate[];
+  /** 💌 Cartas para el futuro. */
+  futureLetters: FutureLetter[];
+  /**
+   * 🎯 Misiones por mes. El mes actual son las activas; los anteriores son
+   * el historial. El progreso se calcula de los datos reales (no se guarda);
+   * lo que se guarda es qué se reclamó (claimedAt / bonusClaimedAt).
+   */
+  monthlyMissions: Record<MonthKey, MissionMonth>;
 }

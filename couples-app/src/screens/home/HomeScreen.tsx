@@ -164,6 +164,7 @@ const ACTIVITY_ICON = {
   streak: '🔥',
   challenge: '🎯',
   position: '💋',
+  mission: '🏆',
   date: '💕',
   achievement: '🏆',
   bonus: '✨',

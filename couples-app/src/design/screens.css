@@ -1178,3 +1178,395 @@
 .idea-hero.has-image {
   height: 200px;
 }
+
+/* ═════════ Fase 3: momentos, cartas y misiones ═════════ */
+
+/* ───────── Nosotros: centro de la pareja ───────── */
+.hub-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+.hub-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-4);
+  min-height: 132px;
+}
+.hub-tile .progress {
+  margin-top: auto;
+  background: rgba(255, 255, 255, 0.7);
+}
+.hub-tile__emoji {
+  font-size: 22px;
+  margin-bottom: 4px;
+}
+.hub-tile__label {
+  font-weight: var(--fw-heavy);
+  font-size: var(--fs-sm);
+}
+.hub-tile__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 560;
+  line-height: 1.1;
+}
+.hub-tile--wide {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+.hub-tile--wide .hub-tile__emoji {
+  margin: 0;
+  font-size: 26px;
+}
+
+/* ───────── Momentos ───────── */
+.together-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--blush-100), var(--peach-100) 60%, var(--butter-100));
+  border-color: transparent;
+  text-align: left;
+}
+.together-card__value {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  font-weight: 560;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+.together-card__hearts {
+  position: absolute;
+  right: 14px;
+  top: 12px;
+  font-size: 26px;
+  animation: heart-beat 2.4s var(--ease-out) infinite;
+}
+.together-card--empty {
+  background: var(--surface);
+  border: 1.5px dashed var(--line-strong);
+  gap: 8px;
+}
+.together-card--empty .btn {
+  align-self: flex-start;
+}
+.anniversary-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.anniversary-card__days {
+  font-family: var(--font-display);
+  font-size: var(--fs-4xl);
+  font-weight: 560;
+  line-height: 1;
+  color: var(--accent);
+}
+.anniversary-card__unit {
+  font-weight: var(--fw-bold);
+  color: var(--ink-2);
+}
+.anniversary-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  font-style: italic;
+  color: var(--accent);
+  line-height: 1.1;
+}
+.anniversary-card.is-today {
+  background: linear-gradient(135deg, var(--blush-100), var(--butter-100));
+  border-color: #f6e3b4;
+  box-shadow: var(--shadow-accent);
+}
+.anniversary-card__confetti span {
+  position: absolute;
+  top: -20px;
+  left: calc(8% + var(--i) * 11.5%);
+  font-size: 18px;
+  animation: confetti-fall 3.2s ease-in calc(var(--i) * 0.35s) infinite;
+  pointer-events: none;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(190px) rotate(160deg); opacity: 0; }
+}
+.timeline {
+  position: relative;
+  margin: 0;
+  padding: 0 0 0 4px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 23px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, var(--blush-300), var(--butter-300));
+}
+.timeline li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+.timeline__dot {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 0 0 4px var(--bg), var(--shadow-sm);
+  font-size: 20px;
+}
+.timeline__card {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface);
+  border: var(--border);
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.timeline__card:active {
+  transform: scale(0.98);
+}
+.timeline__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 560;
+  line-height: 1.25;
+}
+.timeline__date {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  color: var(--accent-ink);
+}
+
+/* ───────── Cartas ───────── */
+.letter-ready {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-radius: var(--r-lg);
+  color: #fff;
+  text-align: left;
+  background: linear-gradient(125deg, #ffb057 0%, #ff7a6b 45%, #ec4f7c 100%);
+  box-shadow: 0 16px 32px -14px rgba(251, 111, 92, 0.6);
+  animation: glow 3s ease-in-out infinite;
+}
+.letter-ready .grow {
+  display: flex;
+  flex-direction: column;
+}
+.letter-ready__env {
+  font-size: 40px;
+  animation: wiggle 2.6s ease-in-out infinite;
+}
+.letter-ready__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-xl);
+  font-weight: 600;
+}
+.letter-ready__cta {
+  padding: 8px 14px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: var(--fw-heavy);
+  font-size: var(--fs-sm);
+}
+.letter-locked {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  background: linear-gradient(135deg, var(--surface), var(--cream-2));
+}
+.letter-locked__lock {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--butter-100);
+  font-size: 22px;
+}
+.letter-locked__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 560;
+}
+.letter-envelope {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 56px var(--sp-5) var(--sp-8);
+  border-radius: var(--r-xl);
+  background: linear-gradient(180deg, var(--peach-100), var(--blush-100));
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  text-align: center;
+}
+.letter-envelope.is-locked {
+  background: linear-gradient(180deg, var(--cream-2), var(--surface));
+}
+.letter-envelope__icon {
+  font-size: 72px;
+  line-height: 1;
+  animation: heart-beat 2.4s var(--ease-out) infinite;
+}
+.letter-envelope__flap {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 70px;
+  background: linear-gradient(180deg, rgba(236, 79, 124, 0.18), transparent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  transform-origin: top;
+  transition: transform 600ms var(--ease-out);
+}
+.letter-envelope.is-opening .letter-envelope__flap {
+  transform: rotateX(180deg) translateY(-40px);
+}
+.letter-envelope.is-opening .letter-envelope__icon {
+  animation: letter-rise 900ms var(--ease-out) forwards;
+}
+@keyframes letter-rise {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.15) translateY(-8px); }
+  100% { transform: scale(0.6) translateY(-80px); opacity: 0; }
+}
+.letter-paper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  padding: var(--sp-6) var(--sp-5);
+  border-radius: var(--r-lg);
+  background:
+    repeating-linear-gradient(180deg, transparent 0 31px, rgba(236, 79, 124, 0.08) 31px 32px),
+    var(--surface);
+  box-shadow: var(--shadow-md);
+  border: var(--border);
+  animation: fade-up var(--dur-slow) var(--ease-out) both;
+}
+.letter-paper__photo {
+  width: 100%;
+  max-height: 320px;
+  object-fit: cover;
+  border-radius: var(--r-md);
+}
+.letter-paper__text {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.letter-paper__meta {
+  font-size: var(--fs-sm);
+  font-style: italic;
+  color: var(--ink-2);
+  text-align: right;
+}
+
+/* ───────── Misiones ───────── */
+.missions-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(135deg, var(--butter-100), var(--surface) 70%);
+  border-color: #f6e3b4;
+}
+.missions-summary.is-complete {
+  background: linear-gradient(135deg, var(--butter-100), var(--blush-100));
+}
+.mission-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: var(--sp-4);
+}
+.mission-card__emoji {
+  flex-shrink: 0;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--blush-100);
+  font-size: 22px;
+  font-weight: 800;
+}
+.mission-card__title {
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  font-weight: 560;
+  line-height: 1.25;
+  margin-top: 2px;
+}
+.mission-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.mission-card__foot {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mission-card.is-done:not(.is-claimed) {
+  border-color: #f6e3b4;
+  box-shadow: 0 10px 26px -14px rgba(214, 174, 98, 0.6);
+}
+.mission-card.is-done:not(.is-claimed) .mission-card__emoji {
+  background: var(--butter-100);
+  animation: heart-beat 1.6s var(--ease-out) infinite;
+}
+.mission-card.is-claimed {
+  background: var(--mint-100);
+  border-color: transparent;
+}
+.mission-card.is-claimed .mission-card__emoji {
+  background: #fff;
+  color: var(--success);
+}
+.mission-card.is-compact {
+  padding: var(--sp-3);
+  gap: 8px;
+  box-shadow: none;
+}
+.mission-card.is-compact .mission-card__title {
+  font-size: var(--fs-md);
+}
+.history-month__head {
+  width: 100%;
+  min-height: 36px;
+}

@@ -18,7 +18,7 @@ import type {
 
 /** Estado inicial y migraciones del esquema guardado. */
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 export function createInitialState(now = Date.now()): AppState {
   return {
@@ -39,6 +39,9 @@ export function createInitialState(now = Date.now()): AppState {
     positions: [],
     positionSchedule: {},
     dateIdeas: [],
+    importantDates: [],
+    futureLetters: [],
+    monthlyMissions: {},
     achievementsUnlocked: {},
     dates: { favorites: [], logs: [], recent: [], filters: EMPTY_FILTERS },
     settings: {

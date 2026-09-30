@@ -17,12 +17,17 @@ import { createInitialState } from './initialState';
 import { chain, ok, pointsEvent, type Action, type Ctx, type Effect, type Result } from './core';
 import { ensureChallengeMonth } from '../features/challenges/actions';
 import { ensurePositionMonth } from '../features/positions/actions';
+import { ensureMissionMonth } from '../features/missions/actions';
+import { monthKeyOf } from '../domain/time';
 import { selectHeartDays, selectMetrics } from './selectors';
 
 export * from './core';
 export * from '../features/challenges/actions';
 export * from '../features/positions/actions';
 export * from '../features/dates/actions';
+export * from '../features/moments/actions';
+export * from '../features/letters/actions';
+export * from '../features/missions/actions';
 
 /* ───────────── Calendario ───────────── */
 
@@ -33,6 +38,13 @@ export * from '../features/dates/actions';
  */
 export const ensureCalendarMonth = (month: MonthKey): Action =>
   chain(ensureChallengeMonth(month), ensurePositionMonth(month));
+
+/**
+ * Prepara el periodo actual (se llama al abrir la app y cada vez que cambia
+ * el día): calendario del mes y, después, sus misiones mensuales.
+ */
+export const ensureCurrentPeriod: Action = (s, ctx) =>
+  chain(ensureCalendarMonth(monthKeyOf(ctx.today)), ensureMissionMonth)(s, ctx);
 
 /* ───────────── Our Intimacy ───────────── */
 

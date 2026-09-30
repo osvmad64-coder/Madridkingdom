@@ -162,7 +162,7 @@ describe('migración fase 1 → fase 2', () => {
       settings: { enabledChallengePacks: ['base'], haptics: false },
     };
     const s = migrate(v1);
-    expect(s.schemaVersion).toBe(2);
+    expect(s.schemaVersion).toBe(3);
     expect(s.challengeSchedule['2026-09']['2026-09-02'].snapshot.title).toBe('Notita escondida');
     expect(s.challenges.some((c) => c.id === s.challengeSchedule['2026-09']['2026-09-20'].challengeId)).toBe(true);
     expect(s.dateIdeas.map((d) => d.id).sort()).toEqual(['cook-off', 'sunset-date']);
