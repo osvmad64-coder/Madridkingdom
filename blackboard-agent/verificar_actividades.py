@@ -20,8 +20,11 @@ Uso:
 Zona horaria: por defecto America/Tijuana; cámbiala con la variable BB_TZ.
 """
 
+import json
 import os
+import re
 import sys
+import unicodedata
 from datetime import datetime, timezone
 
 from playwright.sync_api import sync_playwright
@@ -170,7 +173,8 @@ def nueva_actividad(nombre, tipo, enlace):
             "hasta_iso": None, "disponible": None, "col_visible": None, "col_tipo": None,
             "entrega_iso": None, "fuente_entrega": None, "puntos": None,
             "intentos_permitidos": None, "grade": None, "intentos": None,
-            "http_intentos": None, "ui": None}
+            "http_intentos": None, "ui": None, "ui_leida": False,
+            "fuente_estado": "API"}
 
 
 def actividades_curso(cli, curso, user_id, calendario, problemas):
@@ -230,32 +234,99 @@ def actividades_curso(cli, curso, user_id, calendario, problemas):
         if a["col_id"]:
             a["grade"] = notas.get(a["col_id"])
             a["http_intentos"], a["intentos"] = mis_intentos(cli, pk, a["col_id"], user_id)
-            if a["http_intentos"] != 200:
-                problemas.append(f"{curso['nombre']} / {a['nombre']}: intentos HTTP {a['http_intentos']}")
     return list(acts.values())
 
 
 # ---------------------------------------------------------- respaldo: Ultra
 
-PALABRAS_UI = [  # el orden importa: frases más específicas primero
-    ("no enviad", "no enviada"), ("not submitted", "no enviada"),
-    ("por calificar", "por calificar"), ("needs grading", "por calificar"),
-    ("calificad", "calificada"), ("graded", "calificada"),
-    ("enviad", "enviada"), ("submitted", "enviada"), ("entregad", "entregada"),
-    ("vencid", "vencida"), ("past due", "vencida"), ("overdue", "vencida"),
-    ("exent", "exenta"), ("exempt", "exenta"), ("próxim", "próxima"), ("upcoming", "próxima"),
-]
+def _sin_acentos(t):
+    return unicodedata.normalize("NFD", t).encode("ascii", "ignore").decode().lower()
+
+
+# Señales que Ultra muestra en la página de Calificaciones (español e inglés).
+SENAL = {
+    "no_enviada": r"\bno (enviad|entregad)|not submitted|sin entrega",
+    "enviada": r"(enviad[oa]s?|entregad[oa]s?|submitted)\b",
+    "por_calificar": r"por calificar|needs grading|pendiente de calificar",
+    "sin_calificar": r"sin calificar|not graded|ungraded",
+    "calificada": r"(?<!no )\b(calificad[oa]|graded)\b",
+    "atrasada": r"atrasad|\blate\b|past due|overdue|vencid",
+    "sin_abrir": r"sin abrir|not opened|unopened",
+    "en_progreso": r"en curso|en progreso|in progress|borrador|draft",
+    "bloqueada": r"no disponible|unavailable|bloquead|locked",
+    "exenta": r"exent|exempt",
+    "ilimitados": r"intentos posibles ilimitados|unlimited attempts",
+}
+
+
+def senales_ui(texto):
+    t = _sin_acentos(texto)
+    return {k for k, rx in SENAL.items() if re.search(rx, t)}
+
+
+def estado_desde_ui(a):
+    """(estado, motivo) usando SOLO lo que Ultra muestra. Nunca supone un intento."""
+    texto = a["ui"]["texto"]
+    s = senales_ui(texto)
+    vence = fecha(a["entrega_iso"])
+    vencida = bool(vence and vence < ahora())
+    if "sin_calificar" in s:
+        s.discard("calificada")
+    if "no_enviada" in s:
+        s.discard("enviada")
+
+    if "exenta" in s:
+        return "exenta", "Ultra la marca como exenta"
+    if "enviada" in s or "por_calificar" in s:
+        if "calificada" in s:
+            return "entregada y calificada", "Ultra muestra enviada y calificada"
+        estado = "entregada, por calificar" if ("por_calificar" in s or "sin_calificar" in s) else "entregada"
+        if "atrasada" in s:
+            estado += " (con atraso)"
+        return estado, "Ultra muestra que se envió"
+    if "en_progreso" in s:
+        return "en progreso (guardado, NO enviado)", "Ultra muestra un intento en curso"
+    if "bloqueada" in s:
+        return "no disponible / bloqueada", "Ultra la muestra como no disponible"
+    if "sin_abrir" in s:
+        # Sin abrir = nunca se abrió, por lo tanto no puede haber intento.
+        if "atrasada" in s:
+            return "atrasada, sin abrir", "Ultra marca 'Atrasado' y 'Sin abrir'"
+        if vencida:
+            return "sin abrir, fecha vencida", "Ultra marca 'Sin abrir' y la fecha de entrega (API) ya pasó"
+        return "pendiente, sin abrir", "Ultra marca 'Sin abrir' y la fecha no ha vencido"
+    if "atrasada" in s:
+        return "atrasada", "Ultra marca la actividad como atrasada (no indica si se abrió)"
+    if "no_enviada" in s:
+        return ("sin entrega, fecha vencida" if vencida else "pendiente, sin entrega"), "Ultra muestra que no se ha enviado"
+    if "calificada" in s:
+        return "calificada", "Ultra la muestra como calificada"
+    pistas = []
+    if "ilimitados" in s:
+        pistas.append("'Intentos posibles ilimitados' solo dice cuántos intentos se permiten, no si hubo uno")
+    if "sin_calificar" in s:
+        pistas.append("'Sin calificar' no distingue entre 'no entregada' y 'entregada sin revisar'")
+    return None, "; ".join(pistas) or "el texto visible no contiene ningún indicador de estado"
+
 
 JS_FILAS = """
 (nombres) => {
   const norm = s => (s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
   const out = {};
-  const todos = Array.from(document.querySelectorAll('a, span, div, h3, h4, button, td, bdi'));
+  const todos = Array.from(document.querySelectorAll('a, span, div, h3, h4, button, td, bdi, p'));
   for (const n of nombres) {
-    const el = todos.find(e => e.children.length <= 2 && norm(e.innerText) === norm(n));
+    const nn = norm(n);
+    const otros = nombres.map(norm).filter(o => o !== nn && !nn.includes(o));
+    const el = todos.find(e => e.children.length <= 2 && norm(e.innerText) === nn);
     if (!el) continue;
-    const fila = el.closest('[role="row"], tr, li, [class*="row"], [class*="item"]') || el.parentElement;
-    out[n] = (fila ? fila.innerText : el.innerText).replace(/\\s*\\n\\s*/g, ' · ').replace(/\\s+/g, ' ').trim().slice(0, 300);
+    // Sube hasta la fila completa: se detiene antes de abarcar otra actividad.
+    let mejor = el;
+    for (let p = el.parentElement, i = 0; p && i < 8; p = p.parentElement, i++) {
+      const t = norm(p.innerText);
+      if (t.length > 600 || otros.some(o => t.includes(o))) break;
+      mejor = p;
+    }
+    out[n] = mejor.innerText.replace(/\\s*\\n\\s*/g, ' · ').replace(/\\s+/g, ' ').trim().slice(0, 400);
   }
   return out;
 }
@@ -264,11 +335,27 @@ JS_FILAS = """
 
 def leer_ui(page, curso, actividades):
     url = f"{BASE_URL}/ultra/courses/{curso['pk']}/grades"
+    capturas = []
+
+    def capturar(resp):  # solo lectura: copia las respuestas JSON que la página ya pidió
+        if "/learn/api/" in resp.url and resp.request.method == "GET":
+            try:
+                capturas.append({"url": resp.url, "status": resp.status, "data": resp.json()})
+            except Exception:
+                pass
+
+    if DIAGNOSTICO:
+        page.on("response", capturar)
     try:
         page.goto(url, wait_until="domcontentloaded")
         page.wait_for_load_state("networkidle", timeout=20000)
     except Exception:
         pass
+    if DIAGNOSTICO:
+        page.remove_listener("response", capturar)
+        os.makedirs(CARPETA_DIAG, exist_ok=True)
+        with open(os.path.join(CARPETA_DIAG, f"ultra_api_{curso['pk']}.json"), "w", encoding="utf-8") as f:
+            json.dump(capturas, f, ensure_ascii=False, indent=2)
     try:
         filas = page.evaluate(JS_FILAS, [a["nombre"] for a in actividades])
     except Exception as e:
@@ -279,16 +366,15 @@ def leer_ui(page, curso, actividades):
         with open(os.path.join(CARPETA_DIAG, f"calificaciones_{curso['pk']}.html"), "w", encoding="utf-8") as f:
             f.write(page.content())
     for a in actividades:
-        texto = filas.get(a["nombre"])
-        if texto:
-            bajo = texto.lower()
-            estado = next((v for k, v in PALABRAS_UI if k in bajo), None)
-            a["ui"] = {"texto": texto, "estado": estado}
+        a["ui_leida"] = True
+        if filas.get(a["nombre"]):
+            a["ui"] = {"texto": filas[a["nombre"]]}
     return len(filas)
 
 
 def necesita_ui(a, estado):
-    return estado.startswith(("estado desconocido", "sin estado")) or not a["entrega_iso"]
+    return (estado.startswith(("estado desconocido", "sin estado")) or not a["entrega_iso"]
+            or a["http_intentos"] not in (None, 200))
 
 
 # ---------------------------------------------------------------- impresión
@@ -335,14 +421,22 @@ def imprimir(curso, acts):
               + (f"  (fuente: {a['fuente_entrega']})" if a["fuente_entrega"] else ""))
         print(f"    Estado: {estado}")
         print(f"      por qué: {motivo}")
+        if a["http_intentos"] not in (None, 200):
+            print(f"      diagnóstico técnico: API de intentos respondió HTTP {a['http_intentos']}")
         if a["ui"]:
-            print(f"      Ultra muestra: \"{a['ui']['texto']}\"")
+            print(f"      evidencia Ultra: \"{a['ui']['texto']}\"")
+        elif a["ui_leida"] and a["http_intentos"] not in (None, 200):
+            print("      evidencia Ultra: la actividad no apareció en la página de Calificaciones")
         puntos = a["puntos"]
         print(f"    Puntos: {('%g' % puntos) if isinstance(puntos, (int, float)) else 'no indicado'}")
         print(f"    Calificación: {texto_calificacion(a['grade']) or 'sin calificar'}")
         if a["descripcion"]:
             print(f"    Descripción: {a['descripcion']}")
         intentos = linea_intentos(a)
+        if intentos is None and a["http_intentos"] not in (None, 200):
+            intentos = f"no disponibles por API (HTTP {a['http_intentos']})"
+            if a["ui"] and "ilimitados" in senales_ui(a["ui"]["texto"]):
+                intentos += "; Ultra indica intentos posibles ilimitados"
         if intentos:
             print(f"    Intentos: {intentos}")
         print(f"    Link: {a['enlace']}")
@@ -387,9 +481,21 @@ def main():
                 log("  completando con la página de Calificaciones de Ultra...")
                 leer_ui(page, curso, acts)
                 for a in acts:
-                    if a["ui"] and a["ui"]["estado"] and a["estado"][0].startswith(("estado desconocido", "sin estado")):
-                        a["estado"] = (f"{a['ui']['estado']} (según Ultra)",
-                                       a["estado"][1] + "; la API no lo dijo, se tomó del texto visible")
+                    if not a["estado"][0].startswith(("estado desconocido", "sin estado")):
+                        continue  # la API ya decidió el estado; Ultra queda solo como evidencia
+                    if not a["ui"]:
+                        if a["estado"][0] == "estado desconocido":
+                            a["estado"] = ("estado desconocido",
+                                           a["estado"][1] + "; la actividad no apareció en la página de Calificaciones de Ultra")
+                        continue
+                    estado, motivo = estado_desde_ui(a)
+                    if estado:
+                        a["estado"], a["fuente_estado"] = (estado, motivo), "Ultra"
+                    elif a["estado"][0] == "estado desconocido":
+                        a["estado"] = ("estado desconocido", f"ni la API ni Ultra lo indican: {motivo}")
+            for a in acts:
+                if a["estado"][0].startswith(("pendiente", "estado desconocido")) and not a["entrega_iso"]:
+                    a["estado"] = (a["estado"][0] + " (sin fecha de entrega)", a["estado"][1])
             resultados.append((curso, acts))
 
         print()
@@ -402,7 +508,12 @@ def main():
 
         todas = [a for _, acts in resultados for a in acts]
         for a in todas:
-            if a["estado"][0] == "estado desconocido":
+            if a["http_intentos"] not in (None, 200):
+                resuelto = ("estado sigue desconocido" if a["estado"][0].startswith("estado desconocido")
+                            else f"estado obtenido de {a['fuente_estado']}")
+                problemas.append(f"{a['nombre']}: API de intentos HTTP {a['http_intentos']} "
+                                 f"(diagnóstico técnico; {resuelto})")
+            elif a["estado"][0].startswith("estado desconocido"):
                 problemas.append(f"{a['nombre']}: Blackboard no informó el estado ({a['estado'][1]})")
 
         print()
