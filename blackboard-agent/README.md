@@ -68,3 +68,13 @@ Después del login recorre tus cursos y **prueba** (solo GET) estos endpoints, a
 Si un curso no da nada por API, lee el texto visible de `/ultra/courses/{id}/grades`.
 Al final imprime las tareas por curso, un resumen de qué datos se obtuvieron y la tabla de endpoints que funcionaron.
 La carpeta `diagnostico/` contiene tus datos personales: no la compartas ni la subas.
+
+## Prueba 3: verificar actividades (`verificar_actividades.py`)
+
+```
+python3 verificar_actividades.py              # opcional: --diagnostico
+```
+
+Junta contenido, columna, tu calificación y tus intentos de cada actividad. Clasifica el estado y explica qué dato de Blackboard lo decide.
+Si falta algo, lee el texto visible de la página de Calificaciones de Ultra. Las horas salen en `America/Tijuana`; puedes cambiar la zona con `BB_TZ`.
+Necesita `prueba_minima.py` y `extraer_tareas.py` en la misma carpeta.
