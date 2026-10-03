@@ -46,3 +46,25 @@ python prueba_minima.py
 - **Cursos (plan A)**: `GET /learn/api/public/v1/users/{id}/courses` (API REST oficial de Blackboard,
   usando tu propia sesión).
 - **Cursos (plan B)**: si la universidad bloquea esa API, lee los enlaces de la página `/ultra/course`.
+
+## Prueba 2: tareas y actividades (`extraer_tareas.py`)
+
+```
+python extraer_tareas.py
+python extraer_tareas.py --diagnostico   # guarda respuestas crudas en diagnostico/ (local, fuera de Git)
+```
+
+Después del login recorre tus cursos y **prueba** (solo GET) estos endpoints, anotando el código HTTP de cada uno:
+
+| Endpoint | Para qué |
+|---|---|
+| `/v1/users/{userId}/courses` | lista de cursos |
+| `/v1/courses/{courseId}/contents?recursive=true` (o carpeta por carpeta con `/children`) | tareas, exámenes, foros, descripción |
+| `/v2/courses/{courseId}/gradebook/columns` | fecha de entrega y puntos |
+| `/v2/courses/{courseId}/gradebook/users/{userId}` (o `/v1/...`) | tu calificación y estado |
+| `/v2/courses/{courseId}/gradebook/columns/{columnId}/attempts?userId=` | si ya entregaste |
+| `/v1/calendars/items?type=GradebookColumn` | fechas de entrega del calendario |
+
+Si un curso no da nada por API, lee el texto visible de `/ultra/courses/{id}/grades`.
+Al final imprime las tareas por curso, un resumen de qué datos se obtuvieron y la tabla de endpoints que funcionaron.
+La carpeta `diagnostico/` contiene tus datos personales: no la compartas ni la subas.
